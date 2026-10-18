@@ -1,0 +1,330 @@
+<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>03-sur-la-route.html</title></head><body>
+<script>window.__VTC_BASE='../cdn/data/';window.__VTC_GOTO={trafic:'03-sur-la-route.html#trafic'};</script>
+<!-- ===========================================================
+     ONGLET 3 — SUR LA ROUTE
+     Cinq outils terrain. Tri par distance réelle quand la
+     géolocalisation est accordée, sinon par département.
+     Les gros fichiers (bornes, carburant) ne sont chargés que
+     si l'on ouvre leur sous-section.
+     =========================================================== -->
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../cdn/app.css">
+<style>
+  body { background:#0A0A0B; color:#F4F4F5; margin:0;
+         font-family:Barlow,-apple-system,BlinkMacSystemFont,Roboto,sans-serif; }
+  .subnav { grid-template-columns: repeat(4, 1fr); }
+  /* Fiches de lieux compactes : on en voit plus d'un coup d'œil, tout en
+     gardant des cibles tactiles confortables au pouce. */
+  #body .row { padding: 12px 0; }
+</style>
+
+<div class="subnav" id="subnav">
+  <button class="subnav__item" type="button" data-tab="wc"       aria-pressed="true">
+    <span class="subnav__ico">&#128701;</span>Toilettes</button>
+  <button class="subnav__item" type="button" data-tab="manger"   aria-pressed="false">
+    <span class="subnav__ico">&#127828;</span>Manger</button>
+  <button class="subnav__item" type="button" data-tab="trafic"   aria-pressed="false">
+    <span class="subnav__ico">&#128679;</span>Trafic</button>
+  <button class="subnav__item" type="button" data-tab="astuces"  aria-pressed="false">
+    <span class="subnav__ico">&#128161;</span>Astuces</button>
+</div>
+
+<div class="filters" id="opts"></div>
+<div id="body"><div class="stack"><div class="skeleton"></div></div></div>
+
+<script src="../cdn/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* Le brief renvoie ici d'un clic sur sa carte « Attention » : on ouvre
+     alors directement Trafic, au lieu de laisser le chauffeur chercher la
+     sous-section au volant. #trafic, #wc, #manger, #astuces.               */
+  var ANCRES = { wc: 1, manger: 1, trafic: 1, astuces: 1 };
+  var depart = String(window.location.hash || '').replace('#', '');
+  var tab    = ANCRES[depart] ? depart : 'wc';
+  var pos    = null;          // position du chauffeur, si accordée
+  var geoErr = null;
+  var cache  = {};            // fichiers déjà téléchargés
+  var only24 = false;
+  var body   = document.getElementById('body');
+
+  /* Chaque sous-section déclare le fichier dont elle a besoin : on ne
+     télécharge jamais les 6 000 bornes pour afficher les toilettes.      */
+  var TABS = {
+    wc:      { file: 'lieux',   key: 'toilettes' },
+    manger:  { file: 'lieux',   key: 'manger' },
+    trafic:  { file: 'brief',   key: 'closures' },
+    astuces: { file: 'lieux',   key: 'astuces' }
+  };
+
+  function marquerOnglet() {
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#subnav .subnav__item'), function (i) {
+        i.setAttribute('aria-pressed',
+          i.getAttribute('data-tab') === tab ? 'true' : 'false');
+      });
+  }
+  marquerOnglet();
+
+  document.getElementById('subnav').addEventListener('click', function (e) {
+    var b = e.target.closest('.subnav__item');
+    if (!b) return;
+    tab = b.getAttribute('data-tab');
+    Array.prototype.forEach.call(this.querySelectorAll('.subnav__item'), function (i) {
+      i.setAttribute('aria-pressed', i === b ? 'true' : 'false');
+    });
+    show();
+  });
+
+  /* On ne demande la position qu'une fois, au premier affichage : une
+     autorisation refusée ne doit pas redemander à chaque onglet.         */
+  VTC.locate(function (err, p) {
+    geoErr = err; pos = p;
+    show();
+  });
+
+  function withDist(items) {
+    if (!pos) return items.slice();
+    return items.map(function (it) {
+      return Object.assign({}, it, {
+        _d: VTC.distKm(pos.lat, pos.lon, it.lat, it.lon)
+      });
+    }).sort(function (a, b) { return a._d - b._d; });
+  }
+
+  function geoBanner() {
+    if (pos) return '';
+    if (geoErr === 'denied') {
+      return '<p class="note">Position refusée : la liste n\'est pas triée par distance. ' +
+             'Tu peux l\'autoriser dans les réglages de ton téléphone.</p>';
+    }
+    return '<p class="note">Position indisponible : liste non triée par distance.</p>';
+  }
+
+  function options() {
+    var host = document.getElementById('opts');
+    if (tab === 'wc') {
+      VTC.renderChips(host,
+        [{ code: 'all', label: 'Toutes' }, { code: '24', label: 'Ouvert 24h' }],
+        only24 ? '24' : 'all',
+        function (c) { only24 = (c === '24'); show(); });
+    } else {
+      host.innerHTML = '';
+    }
+  }
+
+  function card(inner) { return '<div class="card">' + inner + '</div>'; }
+
+  /* Le bouton du GPS choisi dans Infos se range à droite, au niveau du nom et
+     de l'adresse : trois lignes deviennent deux, et l'écran tient huit lieux
+     au lieu de quatre.                                                     */
+  function place(it, sub) {
+    return '<div class="row">' +
+      '<div class="row__body">' +
+        '<p class="row__title">' + VTC.esc(it.name) + '</p>' +
+        '<p class="row__sub">' + sub + '</p>' +
+      '</div>' +
+      '<div class="row__right">' +
+        (it._d !== undefined
+          ? '<span class="dist">' + VTC.fmtDist(it._d) +
+            '<span class="dist__unit">d\'ici</span></span>'
+          : '') +
+        VTC.navButtons(it.lat, it.lon) +
+      '</div>' +
+    '</div>';
+  }
+
+  function show() {
+    options();
+    var cfg = TABS[tab];
+
+    if (cache[cfg.file]) { paint(cache[cfg.file]); return; }
+
+    body.innerHTML = '<div class="stack"><div class="skeleton"></div><div class="skeleton"></div></div>';
+    VTC.load(cfg.file, function (err, data) {
+      if (err || !data) {
+        body.innerHTML = '<div class="empty"><span class="empty__ico">📡</span>' +
+          '<p class="empty__title">Pas de connexion</p><p>Ces données arrivent dès que le réseau revient.</p></div>';
+        return;
+      }
+      cache[cfg.file] = data;
+      paint(data);
+    });
+  }
+
+  function paint(data) {
+    var cfg  = TABS[tab];
+    var list = data[cfg.key] || [];
+    var html = '';
+
+    if (tab === 'trafic') {
+      /* UNE SEULE NUIT, et ce qui dure à part. La liste de la semaine entière
+         ne servait à rien au volant : ce qui compte, c'est la nuit qu'on est
+         en train de faire. La bascule se fait à 6 h, à la première ouverture,
+         sans rien attendre du serveur.
+
+         Le second bloc existe parce que le premier est vide le week-end : du
+         vendredi au dimanche, la DiRIF ne ferme presque rien de 21 h à 6 h,
+         mais elle laisse des bretelles coupées en continu et les chantiers
+         courent toujours. Les mélanger affichait « 21h → 6h » sur une
+         fermeture permanente, ce qui est faux.                            */
+      var nuit  = VTC.currentNight();
+      var clos  = VTC.nightClosures(list, nuit);
+      var dure  = VTC.standingClosures(list);
+
+      if (!clos.length && !dure.length) {
+        body.innerHTML = '<div class="empty"><span class="empty__ico">✅</span>' +
+          '<p class="empty__title">Rien de fermé cette nuit</p>' +
+          '<p>' + VTC.esc(VTC.nightTitle(nuit)) + '. Le réseau est libre, ' +
+          'ton GPS suffit.</p></div>';
+        return;
+      }
+
+      /* Deux lignes, pas trois : l'axe et l'horaire ensemble, le détail en
+         dessous. Le département n'apporte rien ici — l'axe le dit déjà.   */
+      function ligne(c) {
+        return '<div class="row">' +
+          '<div class="row__body">' +
+            '<p class="row__title">' + VTC.esc(c.title) +
+              '<span class="tag tag--alert">' +
+              VTC.esc(VTC.closureBadge(c)) + '</span></p>' +
+            '<p class="row__sub">' + VTC.esc(c.detail || '') + '</p>' +
+          '</div></div>';
+      }
+
+      html += '<p class="note" style="margin:0 0 10px">' +
+              VTC.esc(VTC.nightTitle(nuit)) + '</p>';
+      if (clos.length) {
+        html += '<div class="stack"><div class="card">' +
+                clos.map(ligne).join('') + '</div></div>';
+      } else {
+        html += '<div class="stack"><div class="card">' +
+                '<p class="row__sub">Aucune fermeture nocturne annoncée sur ' +
+                'les grands axes. C\'est courant le week-end.</p>' +
+                '</div></div>';
+      }
+
+      if (dure.length) {
+        html += '<p class="note" style="margin:14px 0 10px">' +
+                'Fermé en continu, jour et nuit</p>' +
+                '<div class="stack"><div class="card">' +
+                dure.map(ligne).join('') + '</div></div>';
+      }
+      body.innerHTML = html;
+      return;
+    }
+
+    if (tab === 'astuces') {
+      /* Le carnet du chauffeur. Une astuce n'a pas forcément de lieu : celles
+         qui en ont un se classent par distance et portent leur bouton GPS,
+         les autres se lisent, c'est tout.                                  */
+      var avec = withDist(list.filter(function (a) { return a.lat != null; }));
+      var sans = list.filter(function (a) { return a.lat == null; });
+      if (!avec.length && !sans.length) {
+        body.innerHTML = '<div class="empty"><span class="empty__ico">\uD83D\uDCA1</span>' +
+          '<p class="empty__title">Pas encore d\'astuce</p>' +
+          '<p>Ce carnet se remplit au fil du terrain : lieux o\u00f9 patienter, ' +
+          'heures creuses, entr\u00e9es \u00e0 \u00e9viter.</p></div>';
+        return;
+      }
+      html += geoBanner() + '<div class="stack"><div class="card">';
+      avec.concat(sans).forEach(function (a) {
+        html += '<div class="row">' +
+          '<div class="row__body">' +
+            '<p class="row__title">' + VTC.esc(a.name) + VTC.deptTag(a.dept) + '</p>' +
+            '<p class="row__sub">' + VTC.esc(a.note || '') + '</p>' +
+          '</div>' +
+          (a.lat != null
+            ? '<div class="row__right">' +
+                (a._d !== undefined
+                  ? '<span class="dist">' + VTC.fmtDist(a._d) +
+                    '<span class="dist__unit">d\'ici</span></span>'
+                  : '') +
+                VTC.navButtons(a.lat, a.lon) +
+              '</div>'
+            : '') +
+        '</div>';
+      });
+      html += '</div></div>';
+      html += '<p class="note">Relev\u00e9 sur le terrain, pas dans une base de ' +
+              'donn\u00e9es. Si tu en as une \u00e0 ajouter, \u00e9cris-nous depuis R\u00e9glages.</p>';
+      body.innerHTML = html;
+      return;
+    }
+
+    if (tab === 'wc' && only24) {
+      list = list.filter(function (it) { return it.h24; });
+    }
+
+    /* Manger : on écarte ce qui est déjà fermé pour la nuit en cours. Les
+       fiches saisies à la main n'ont pas d'horaires détaillés, elles restent. */
+    if (tab === 'manger') {
+      list = list.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
+    }
+
+    /* Position connue : cinq suffisent, et ce sont vraiment les cinq d'à
+       côté. Sans position, la liste n'est pas triée par distance — on en
+       montre alors davantage, faute de mieux.                            */
+    var combien = pos ? 5 : 12;
+    var items = withDist(list).slice(0, combien);
+
+    if (!items.length) {
+      body.innerHTML = '<div class="empty"><span class="empty__ico">🗒</span>' +
+        '<p class="empty__title">Rien à afficher ici</p>' +
+        '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
+      return;
+    }
+
+    html += geoBanner() + '<div class="stack"><div class="card">';
+
+    items.forEach(function (it) {
+      var sub = '';
+      if (tab === 'wc') {
+        sub = '<span class="row__what">' + VTC.esc(it.address) + '</span>' +
+              (it.h24 ? '<span class="tag tag--ok">24/24h</span> '
+                      : '<span class="tag">' + VTC.esc(it.open_label || 'horaires inconnus') + '</span> ') +
+              (it.pmr ? '<span class="tag">PMR</span> ' : '');
+      } else if (tab === 'manger') {
+        var etat = VTC.mangerEtat(it);
+        /* Fiche OpenStreetMap : l'heure de fermeture de CETTE nuit, et rien
+           d'autre — c'est la seule chose qu'on veut savoir à deux heures du
+           matin. Fiche saisie à la main : ce que Google Maps ne dit pas,
+           parking, toilettes, prix.                                        */
+        sub = '<span class="row__what">' + VTC.esc(it.address) + '</span>' +
+              (etat
+                ? (etat.h24
+                    ? '<span class="tag tag--ok">24h/24</span> '
+                    : etat.ouvert
+                      ? '<span class="tag tag--ok">jusqu\'à ' + VTC.hhmm(etat.fin) + '</span> '
+                      : '<span class="tag">ouvre à ' + VTC.hhmm(etat.debut) + '</span> ')
+                : (it.hours ? '<span class="tag">' + VTC.esc(it.hours) + '</span> ' : '')) +
+              (it.drive ? '<span class="tag">Drive</span> ' : '') +
+              (it.parking ? '<span class="tag tag--ok">Parking</span> ' : '') +
+              (it.wc ? '<span class="tag tag--ok">Toilettes</span> ' : '') +
+              (it.price ? '<span class="tag">' + VTC.esc(it.price) + '</span> ' : '');
+      } else {
+        sub = VTC.esc(it.address || '') + ' ' +
+              (it.note ? '<span class="tag">' + VTC.esc(it.note) + '</span> ' : '');
+      }
+      html += place(it, sub);
+    });
+
+    html += '</div></div>';
+    if (tab === 'manger')  html += '<p class="note">Seulement ce qui est ' +
+      'encore ouvert cette nuit. Horaires OpenStreetMap, renseignés par des ' +
+      'contributeurs : vérifie avant de faire dix kilomètres.</p>';
+    if (tab === 'wc')      html += '<p class="note">' +
+      (pos ? 'Les 5 plus proches de toi. ' : 'Les 12 premières, faute de position. ') +
+      'Dans Paris : sanisettes de la Ville. En banlieue : OpenStreetMap, ' +
+      'alimenté par des contributeurs — les horaires y manquent souvent, ' +
+      'donc « 24h/24 » n\'est affiché que lorsque c\'est écrit.</p>';
+
+    body.innerHTML = html;
+  }
+})();
+</script>
+
+</body></html>

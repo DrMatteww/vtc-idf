@@ -7,7 +7,7 @@ name: Données VTC
 on:
   schedule:
     - cron: '7 * * * *'        # toutes les heures (UTC) : le brief
-    - cron: '20 4 * * 1'       # lundi : lieux + bornes
+    - cron: '20 4 * * 1'       # lundi : les lieux
   workflow_dispatch:            # bouton « Run workflow » pour forcer une mise à jour
 
 permissions:
@@ -19,24 +19,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Selon la façon dont les fichiers ont été envoyés sur GitHub, le dossier
+      # de l'application se retrouve soit dans « vtc-app/ », soit directement à
+      # la racine du dépôt. On regarde où il est au lieu de le supposer : une
+      # exécution qui échoue avec « exit code 2 » pour une histoire de chemin
+      # est incompréhensible quand on débute.
+      - name: Trouver l'application
+        id: app
+        run: |
+          if [ -f vtc-app/scripts/build_data.py ]; then
+            echo "dir=vtc-app" >> "$GITHUB_OUTPUT"
+            echo "Application trouvée dans vtc-app/"
+          elif [ -f scripts/build_data.py ]; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+            echo "Application trouvée à la racine du dépôt"
+          else
+            echo "::error::scripts/build_data.py est introuvable. Le dépôt doit contenir soit vtc-app/scripts/, soit scripts/. Contenu actuel ci-dessous."
+            ls -la
+            exit 1
+          fi
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       # Le programme de vols d'Air France pèse 80 Mo et ne change que quelques
-      # fois par an. On garde l'extrait découpé d'une exécution à l'autre : le
-      # script renvoie alors l'ETag du fichier et data.gouv répond « 304 non
-      # modifié » en quelques octets. La clé change chaque semaine pour que le
-      # cache finisse quand même par se rafraîchir. Sans ce cache, tout
-      # fonctionne pareil — ce sont juste 80 Mo téléchargés chaque heure.
+      # fois par an ; les réponses d'OpenStreetMap et les adresses résolues ne
+      # bougent pas non plus d'un jour à l'autre. On garde tout ça d'une
+      # exécution à l'autre : data.gouv répond alors « 304 non modifié » en
+      # quelques octets, et les miroirs Overpass ne sont sollicités qu'une fois
+      # par semaine. La clé change chaque semaine pour que le cache finisse
+      # quand même par se rafraîchir.
       - name: Semaine courante (clé de cache)
         id: semaine
         run: echo "cle=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache de l'horaire des vols
+      - name: Cache des sources lourdes
         uses: actions/cache@v4
         with:
-          path: vtc-app/scripts/.cache
+          path: ${{ steps.app.outputs.dir }}/scripts/.cache
           key: ssim-${{ steps.semaine.outputs.cle }}
           restore-keys: ssim-
 
@@ -45,21 +66,21 @@ jobs:
       #   TICKETMASTER_KEY  ajoute la programmation des grandes salles.
       # Sans eux le brief s'écrit quand même, avec moins de contenu. Les vols,
       # les agendas ouverts et les matchs de Ligue 1 ne demandent rien.
-      - name: Brief (trains, vols, événements, fermetures)
+      - name: Brief (trains, vols, événements, fermetures, météo)
         env:
           SNCF_TOKEN: ${{ secrets.SNCF_TOKEN }}
           TICKETMASTER_KEY: ${{ secrets.TICKETMASTER_KEY }}
-        run: python3 vtc-app/scripts/build_data.py --out public/data --only brief
+        run: python3 ${{ steps.app.outputs.dir }}/scripts/build_data.py --out public/data --only brief
 
       # Toilettes, fast-foods de nuit, astuces et communes. Une fois par
       # semaine : OpenStreetMap ne bouge pas d'un jour à l'autre, et les
       # miroirs Overpass sont tenus par des bénévoles.
       - name: Lieux (hebdomadaire)
         if: github.event.schedule == '20 4 * * 1' || github.event_name == 'workflow_dispatch'
-        run: python3 vtc-app/scripts/build_data.py --out public/data --only lieux
+        run: python3 ${{ steps.app.outputs.dir }}/scripts/build_data.py --out public/data --only lieux
 
       - name: Copier la feuille de style et le script
-        run: cp vtc-app/cdn/app.css vtc-app/cdn/app.js public/
+        run: cp ${{ steps.app.outputs.dir }}/cdn/app.css ${{ steps.app.outputs.dir }}/cdn/app.js public/
 
       - name: Publier
         uses: peaceiris/actions-gh-pages@v4

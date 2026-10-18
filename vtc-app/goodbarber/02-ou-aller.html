@@ -1,0 +1,160 @@
+<!-- ===========================================================
+     ONGLET 2 — OÙ ALLER
+     Tout ce qui crée de la demande, en timeline chronologique.
+     Deux filtres : type d'événement et département.
+     Le département choisi est mémorisé d'une session à l'autre.
+     =========================================================== -->
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://TON-COMPTE.github.io/vtc-idf/app.css">
+<style>
+  body { background:#0A0A0B; color:#F4F4F5; margin:0;
+         font-family:Barlow,-apple-system,BlinkMacSystemFont,Roboto,sans-serif; }
+</style>
+
+<div class="filters filters--sticky" id="kinds"></div>
+<div class="filters" id="depts"></div>
+
+<div id="list">
+  <div class="stack"><div class="skeleton"></div><div class="skeleton"></div></div>
+</div>
+
+<script src="https://TON-COMPTE.github.io/vtc-idf/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var state = { kind: 'all', dept: 'all', data: null };
+  var zones = null, autoDept = null;
+
+  /* Le département n'est plus mémorisé : il est redéduit de la position à
+     chaque ouverture. Un chauffeur qui ouvre l'app dans le 94 doit voir le 94,
+     même s'il consultait Paris la veille. Un clic sur une autre pastille
+     l'emporte pour la session en cours.                                    */
+  function autoSelectDept() {
+    VTC.locate(function (err, p) {
+      if (err || !p || !zones) return;
+      var items = (state.data && state.data.demand) || [];
+      var d = VTC.deptAt(p, zones, items);
+      if (!d || d === autoDept) return;
+      autoDept = d;
+      state.dept = d;
+      VTC.setActiveChip(document.getElementById('depts'), d);
+      render();
+    }, 0);
+  }
+
+  function pickDept(c) {
+    state.dept = c;
+    render();
+  }
+
+  VTC.load('zones', function (err, z) {
+    zones = (z && z.communes) || null;
+    if (zones) autoSelectDept();
+  });
+
+  VTC.onReopen(function () { autoSelectDept(); });
+
+  var kindList = [{ code: 'all', label: 'Tout' }].concat(VTC.FILTERS);
+
+  VTC.renderChips(document.getElementById('kinds'), kindList, state.kind, function (c) {
+    state.kind = c; render();
+  });
+
+  VTC.renderChips(document.getElementById('depts'), VTC.DEPTS, state.dept, pickDept);
+
+  /* Étiquette de section : où l'on en est dans la journée, pour que la
+     timeline reste lisible quand elle court sur 24 h.                     */
+  function bucket(iso) {
+    var d = new Date(iso), now = new Date();
+    var sameDay = d.toDateString() === now.toDateString();
+    if (!sameDay) {
+      var tmrw = new Date(now.getTime() + 86400000);
+      if (d.toDateString() === tmrw.toDateString()) return 'Demain';
+      return VTC.dayLabel(d);
+    }
+    return VTC.period(d).label;
+  }
+
+  function render() {
+    var host = document.getElementById('list');
+    var data = state.data;
+    if (!data) return;
+
+    /* VTC.live fait deux choses : il enlève la ligne dès que son créneau est
+       passé — « 18h-20h » n'a plus rien à dire à 20h01 — et il arrête les
+       trains et les vols à 6 h du matin : les arrivées de demain ne
+       s'affichent que demain. Les événements, eux, restent visibles à
+       l'avance : un match ou un salon, ça se prépare la veille.          */
+    var items = VTC.live(data.demand)
+      .filter(function (it) {
+        if (!VTC.inFilter(it.kind, state.kind)) return false;
+        if (state.dept !== 'all' && it.dept !== state.dept) return false;
+        return true;
+      })
+      .sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
+
+    if (!items.length) {
+      host.innerHTML =
+        '<div class="empty"><span class="empty__ico">🔍</span>' +
+        '<p class="empty__title">Rien avec ces filtres</p>' +
+        '<p>Élargis le département ou le type d\'événement.</p></div>';
+      return;
+    }
+
+    var html = '', lastBucket = null;
+
+    items.forEach(function (it) {
+      var b = bucket(it.start);
+      if (b !== lastBucket) {
+        if (lastBucket !== null) html += '</div>';
+        html += '<h2 class="section-title">' + VTC.esc(b) + '</h2><div class="stack"><div class="card">';
+        lastBucket = b;
+      }
+
+      var mins = VTC.minutesUntil(it.start);
+      var soon = mins <= 90 && mins > -30;
+
+      html +=
+        '<div class="row">' +
+          '<div class="row__time' + (soon ? ' row__time--soon' : '') + '">' +
+            VTC.timeCell(it) + '</div>' +
+          /* Le lieu porte son département, les arrivées portent la demande :
+             deux lignes au lieu de trois, sur un écran qu'on lit au feu rouge. */
+          '<div class="row__body">' +
+            '<p class="row__title"><span class="row__name">' +
+              VTC.ico(it.kind) + VTC.esc(it.venue || it.title) + '</span>' +
+              VTC.deptTag(it.dept) + '</p>' +
+            '<p class="row__sub"><span class="row__what">' + VTC.esc(it.title) +
+              '</span>' + VTC.demandTag(it.volume) + '</p>' +
+          '</div>' +
+          (it.lat
+            ? '<div class="row__right"><a class="navlink" target="_blank" rel="noopener" href="' +
+              VTC.navUrl(it.lat, it.lon) + '">Y aller</a></div>'
+            : '') +
+        '</div>';
+    });
+
+    html += '</div></div>';
+    html += '<p class="note">Pour une salle, l\'heure affichée est celle de la ' +
+            '<b>sortie</b>, estimée à partir de l\'heure du billet : la ' +
+            'billetterie ne publie pas d\'heure de fin. Pour un salon, c\'est la ' +
+            'tranche où ça sort le plus, de 14 h à la fermeture — pas les ' +
+            'horaires d\'ouverture.</p>';
+    host.innerHTML = html;
+  }
+
+  VTC.load('brief', function (err, data) {
+    if (err || !data) {
+      document.getElementById('list').innerHTML =
+        '<div class="empty"><span class="empty__ico">📡</span>' +
+        '<p class="empty__title">Pas de connexion</p><p>Reviens dès que tu as du réseau.</p></div>';
+      return;
+    }
+    state.data = data;
+    render();
+  });
+})();
+</script>

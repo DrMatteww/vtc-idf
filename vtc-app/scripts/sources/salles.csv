@@ -1,0 +1,17 @@
+code;nom;dept;lat;lon;capacite;type_defaut;alias;ticketmaster;actif
+bercy;Accor Arena;75;48.8386;2.3787;20300;concert;accor arena|palais omnisports|bercy arena;rZASnyZee9;1
+defense;Plenitude Arena;92;48.8958;2.2286;40000;concert;la defense arena|paris la defense arena|plenitude arena;rZ7SnyZaAGI;1
+sdf;Stade de France;93;48.9245;2.3601;80700;sport;stade de france;Z598xZG2Ze717;1
+pdp;Parc des Princes;75;48.8414;2.2530;47900;sport;parc des princes;Z598xZC4ZFeve;1
+adidas;Adidas Arena;75;48.8976;2.3597;8000;concert;adidas arena;rZ7SnyZaABd;1
+zenith;Zénith Paris La Villette;75;48.8938;2.3896;6300;concert;zenith;rZkSnyZdke;1
+seine;La Seine Musicale;92;48.8313;2.2287;6000;concert;seine musicale;rZ7SnyZa7mA;1
+jeanbouin;Stade Jean-Bouin;75;48.8430;2.2510;20000;sport;jean bouin;rZ7SnyZak98;1
+rg;Stade Roland-Garros;75;48.8470;2.2500;15000;sport;roland garros;ZFr9jZdAdv;1
+charlety;Stade Sébastien Charléty;75;48.8190;2.3460;20000;sport;charlety;rZ7SnyZaAGZ;1
+manoir;Stade Yves-du-Manoir;92;48.9280;2.2500;14000;sport;yves du manoir;rZ7SnyZaA7I;1
+longchamp;Hippodrome ParisLongchamp;75;48.8560;2.2330;10000;sport;longchamp;rZ6SnyZFAk;1
+pdv;Paris Expo Porte de Versailles;75;48.8323;2.2875;40000;salon;paris expo|porte de versailles|parc des expositions;rZ6SnyZFdv;1
+arenagp;Arena Grand Paris;93;48.97642;2.53012;9000;concert;arena grand paris;rZ7SnyZakA8;1
+villepinte;Parc des Expositions Villepinte;93;48.9735;2.5160;40000;salon;villepinte;rZFSnyZ17av;1
+bourget;Parc des Expositions du Bourget;93;48.9560;2.4340;30000;salon;bourget;rZ7SnyZadeI;1

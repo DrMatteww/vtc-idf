@@ -1,0 +1,1594 @@
+<!-- =========================================================================
+     VTC IDF — section « Réglages »
+     À COLLER DANS GOODBARBER : section de type « Custom » / contenu HTML.
+     Ce bloc est autonome : il contient déjà tout le style et toute la logique.
+
+     UNE SEULE CHOSE À RENSEIGNER, la ligne ci-dessous : l'adresse où sont
+     publiés brief.json, lieux.json et zones.json.
+     ========================================================================= -->
+<script>window.__VTC_BASE = 'https://TON-COMPTE.github.io/vtc-idf/data/';</script>
+<!-- ===========================================================
+     ONGLET 4 — INFOS
+     Transparence sur le financement (promesse de l'onboarding),
+     sources des données, et boîte à suggestions : c'est elle qui
+     alimentera les fiches terrain et préparera la V3.
+     =========================================================== -->
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+/* ==========================================================================
+   VTC IDF — système de design « instrument de bord »
+   --------------------------------------------------------------------------
+   Ce qu'on a quitté : fond bleu nuit, ambre partout, cartes très arrondies,
+   dégradés. Lu par l'utilisateur comme « ça fait IA », et il avait raison :
+   c'est la signature visuelle par défaut de tout ce qui se génère aujourd'hui.
+
+   Ce qu'on vise : un outil professionnel qu'on lit au feu rouge. Les
+   références sont les applications de chauffeur et de transport — Uber
+   Driver, Flighty, Transit — et elles partagent trois partis pris :
+
+   1. NOIR NEUTRE, pas bleu nuit. Le bleu « habille » ; le gris neutre
+      disparaît et laisse exister le contenu.
+   2. LA TYPOGRAPHIE FAIT LA HIÉRARCHIE, pas la couleur. Une seule famille,
+      quatre graisses, des chiffres tabulaires. La couleur ne sert plus qu'à
+      dire quelque chose : rouge = attention, vert = ouvert, blanc = agis.
+   3. DES ANGLES VIFS. 3 px sur les cartes, 2 px sur le reste. Les grands
+      rayons appartiennent aux applications grand public ; un instrument de
+      travail a des arêtes.
+
+   Police : Barlow, un grotesque dessiné d'après la signalisation routière.
+   Chargée en « display=swap » : le texte s'affiche tout de suite dans la
+   police système si le réseau traîne, ce qui n'arrive jamais au bon moment
+   quand on roule.
+   ========================================================================== */
+
+:root {
+  /* Fonds — gris neutres. Pas de noir pur : sur OLED, le défilement bave. */
+  --bg:         #0A0A0B;
+  --surface:    #121214;
+  --surface-2:  #1B1B1F;
+  --line:       #2A2A31;
+  --line-soft:  #1E1E23;
+
+  /* Textes */
+  --text:       #F4F4F5;
+  --text-dim:   #9A9AA3;
+  --text-mute:  #63636C;
+
+  /* Sémantique — trois couleurs, trois significations, rien d'autre. */
+  --accent:     #FFFFFF;  /* action : c'est ici qu'on appuie */
+  --accent-ink: #0A0A0B;
+  --alert:      #FF4433;  /* fermeture, forte demande : le seul rouge */
+  --alert-bg:   #2B100C;
+  --alert-line: #5A1F18;
+  --ok:         #35D07F;  /* ouvert, disponible */
+  --ok-bg:      #0D2418;
+
+  --radius:     3px;
+  --radius-sm:  2px;
+  --tap:        48px;     /* cible tactile minimale : on tape au pouce */
+
+  --pad:        16px;
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Barlow, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;               /* jamais en dessous : lecture à bout de bras */
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+body {
+  padding-top: var(--safe-top);
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* Les émojis gardés pour leur lisibilité immédiate (une gare, un avion) sont
+   désaturés : ils redeviennent des pictogrammes et cessent de faire tache
+   dans un écran monochrome. Les flammes, elles, gardent leur couleur — c'est
+   une note, pas une icône. */
+.ico { filter: grayscale(1); opacity: .9; font-style: normal; }
+
+/* ---------- En-tête ------------------------------------------------------ */
+
+.topbar {
+  padding: 20px var(--pad) 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.topbar__left { min-width: 0; }
+
+/* L'icône d'abord, la température dessous : la forme se reconnaît de plus loin
+   qu'un chiffre, et c'est elle qui dit s'il va falloir rouler sous la pluie. */
+.meteo {
+  flex: none;
+  text-align: center;
+  line-height: 1;
+  padding-top: 2px;
+}
+.meteo__ico { display: block; font-size: 25px; }
+.meteo__deg {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  margin-top: 5px;
+}
+
+/* Un titre d'écran se lit d'un coup d'œil : gros, serré, en capitales de
+   petite taille pour l'ancrer dans l'interface plutôt que dans la prose. */
+.topbar__period {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.topbar__meta {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-mute);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  letter-spacing: 0.1px;
+}
+
+.dot {
+  width: 6px; height: 6px;
+  background: var(--ok);
+  flex: none;
+}
+.dot--stale { background: var(--text-mute); }
+
+/* ---------- Cartes ------------------------------------------------------- */
+
+.stack { padding: 0 var(--pad); display: flex; flex-direction: column; gap: 10px; }
+.stack:first-of-type { padding-top: 12px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: block;
+}
+
+/* Le filet vertical remplace le dégradé : il désigne sans colorer tout le
+   bloc, et il tient sur une seule ligne de CSS. */
+.card--hero  { border-left: 3px solid var(--accent); }
+.card--alert { border-left: 3px solid var(--alert); background: var(--surface); }
+
+.card__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.card--hero  .card__label { color: var(--text); }
+.card--alert .card__label { color: var(--alert); }
+
+.card__title {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 0 0 3px;
+}
+
+.card__sub { font-size: 14px; font-weight: 400; color: var(--text-dim); margin: 0; }
+
+/* ---------- Horaires : les chiffres sont les stars ----------------------- */
+
+.hero-time {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -1.2px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin: 4px 0 10px;
+}
+
+.hero-when {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 5px;
+}
+
+.countdown {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Lignes de liste --------------------------------------------- */
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: var(--tap);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.row:last-child { border-bottom: 0; }
+
+/* L'heure est en retrait tant qu'elle est lointaine ; celle qui approche
+   passe en blanc plein. La hiérarchie se fait en luminosité, pas en teinte :
+   une couleur de plus serait une information de moins. */
+.row__time {
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 54px;
+  flex: none;
+  letter-spacing: -0.3px;
+  color: var(--text-dim);
+}
+.row__time--soon { color: var(--text); }
+
+.row__h2 {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-mute);
+  margin-top: 1px;
+}
+.row__when {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 1px;
+}
+
+.row__body { flex: 1; min-width: 0; }
+/* Une ligne par titre, toujours. Le nom se coupe plutôt que de pousser la
+   pastille de département à la ligne : un « Marne-la-Vallée Che… » reconnaissable
+   vaut mieux qu'une liste dont les lignes n'ont pas deux fois la même hauteur. */
+.row__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.1px;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.row__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.row__sub {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin: 3px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+/* Deuxième ligne, même règle que la première : le texte se coupe, la note en
+   flammes ne descend jamais sur une troisième ligne. */
+.row__sub { flex-wrap: nowrap; }
+.row__what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+.row__right { flex: none; text-align: right; }
+
+/* ---------- Puces et étiquettes ----------------------------------------- */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* Les capitales vont aux étiquettes qui désignent — un département, une
+   alerte. Pas aux horaires : « JUSQU'À 00H00 » est plus large et moins lisible
+   que « jusqu'à 00h00 ». */
+.tag--dept, .tag--alert { text-transform: uppercase; }
+/* Le département est une précision, pas une information : il doit tenir sur
+   la ligne du lieu sans la faire passer à la ligne. */
+.tag--dept { border-color: var(--line-soft); color: var(--text-mute); font-size: 9.5px; padding: 1px 4px; }
+
+/* Trois niveaux de demande. Les flammes portent déjà leur couleur : leur
+   coller un aplat rouge par-dessus faisait trois pavés lumineux par écran,
+   en concurrence directe avec le rouge des fermetures — celui qui doit rester
+   le seul à vraiment alerter. La montée se fait donc par le filet, qui passe
+   du gris au rouge plein, et par le nombre de flammes. */
+.tag--demand-1 { border-color: var(--line); }
+.tag--demand-2 { border-color: #5E251E; }
+.tag--demand-3 { border-color: var(--alert); background: var(--alert-bg); }
+.tag--demand-1, .tag--demand-2, .tag--demand-3 {
+  padding: 1px 5px;
+  font-size: 10px;
+  letter-spacing: -1px;          /* les flammes se touchent, elles font bloc */
+}
+
+.tag--ok    { border-color: #1C4A33; color: var(--ok); }
+.tag--alert { border-color: var(--alert-line); background: var(--alert-bg); color: #FF8574; }
+
+/* Le département tient sur la ligne du lieu, la demande sur celle des
+   arrivées : une ligne de gagnée sur chaque bloc. */
+.card__title .tag { margin-left: 6px; vertical-align: middle; }
+.row__title .tag { flex: none; }
+
+/* ---------- Filtres (défilement horizontal) ------------------------------ */
+
+.filters {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px var(--pad);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.filters::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  user-select: none;
+}
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.filters--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* ---------- Sous-navigation (Sur la route) ------------------------------ */
+
+.subnav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 1px;
+  padding: 0;
+  background: var(--line-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Quatre tuiles jointives séparées d'un filet d'un pixel : une barre
+   d'instruments, pas quatre boutons posés sur un fond. */
+.subnav__item {
+  min-height: 56px;
+  border: 0;
+  border-top: 2px solid transparent;
+  background: var(--surface);
+  color: var(--text-mute);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.subnav__item[aria-pressed="true"] {
+  border-top-color: var(--accent);
+  color: var(--text);
+  background: var(--surface-2);
+}
+.subnav__ico { font-size: 18px; line-height: 1; filter: grayscale(1); opacity: .8; }
+.subnav__item[aria-pressed="true"] .subnav__ico { opacity: 1; }
+
+/* ---------- Boutons ------------------------------------------------------ */
+
+.btn {
+  min-height: var(--tap);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  width: 100%;
+  cursor: pointer;
+}
+/* Le blanc plein ne sert qu'à l'action principale d'un écran. S'il était sur
+   chaque ligne d'une liste, il ne voudrait plus rien dire. */
+.btn--accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  min-height: 44px;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.btn--ghost  { background: transparent; color: var(--text-dim); }
+
+.btn-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.btn-pair--seul { grid-template-columns: 1fr; }
+
+/* Dans une liste, le bouton de navigation est contourné : il se voit, sans
+   couvrir l'écran de pavés blancs. */
+.row__right .btn {
+  min-height: 38px;
+  width: auto;
+  padding: 0 14px;
+  font-size: 13px;
+  background: transparent;
+  border-color: var(--line);
+  color: var(--text);
+}
+.row__right .btn-pair { margin-top: 6px; }
+
+.navlink {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- Distance ----------------------------------------------------- */
+
+.dist {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.dist__unit {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  display: block;
+}
+
+/* ---------- États -------------------------------------------------------- */
+
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-dim);
+}
+.empty__ico { font-size: 30px; display: block; margin-bottom: 12px; filter: grayscale(1); opacity: .4; }
+.empty__title { font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 5px; }
+.empty p { margin: 0; font-size: 13.5px; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius);
+  height: 88px;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* ---------- Divers ------------------------------------------------------- */
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  padding: 22px var(--pad) 8px;
+  margin: 0;
+}
+
+.note {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-mute);
+  padding: 14px var(--pad) 0;
+  line-height: 1.5;
+}
+
+.count { font-size: 12px; color: var(--text-mute); font-weight: 600; }
+
+.hidden { display: none !important; }
+
+</style>
+<style>
+  body { background:#0A0A0B; color:#F4F4F5; margin:0;
+         font-family:Barlow,-apple-system,BlinkMacSystemFont,Roboto,sans-serif; }
+  .lead { font-size:14.5px; line-height:1.55; color:#9A9AA3; margin:0 0 10px; font-weight:400; }
+  .lead:last-child { margin-bottom:0; }
+  .lead b { color:#F4F4F5; font-weight:600; }
+  /* Le champ de date doit rester lisible sur fond sombre : Safari et Chrome
+     le dessinent clair par défaut, d'où color-scheme. */
+  .ech-date {
+    color-scheme: dark;
+    background: transparent;
+    color: #F4F4F5;
+    border: 1px solid #2A2A31;
+    border-radius: 2px;
+    padding: 7px 8px;
+    font: inherit;
+    font-size: 14px;
+    min-height: 38px;
+  }
+</style>
+
+<div class="topbar">
+  <div class="topbar__left">
+    <h1 class="topbar__period">Réglages</h1>
+    <div class="topbar__meta"><span>L'appli des chauffeurs VTC d'Île-de-France</span></div>
+  </div>
+</div>
+
+<div class="stack">
+
+  <div class="card">
+    <div class="card__label">Mes échéances</div>
+    <p class="lead">Les dates qui arrêtent l'activité le jour où elles tombent.
+      Saisis-les une fois, le <b>brief te prévient à temps</b> : un mois avant,
+      et <b>trois mois</b> pour la carte VTC — son renouvellement prend environ
+      deux mois.</p>
+    <div id="ech"></div>
+    <p class="lead" style="margin-top:10px;color:#8A93A6;font-size:13.5px">
+      Ces dates restent dans ce téléphone : rien n'est envoyé, rien n'est
+      partagé. Ce sont tes papiers, pas des données d'application. Change de
+      téléphone et il faudra les resaisir.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Ton GPS</div>
+    <p class="lead">Choisis l'application qui s'ouvre quand tu appuies sur
+      « Y aller ». Un seul bouton partout, celui que tu utilises vraiment.</p>
+    <div class="filters" id="nav" style="padding:10px 0 0"></div>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Pourquoi c'est gratuit</div>
+    <p class="lead">L'appli est <b>gratuite, et le restera</b>. Pas d'abonnement, pas de version payante.</p>
+    <p class="lead">Elle est financée par de la <b>publicité</b>. C'est ce qui paie l'hébergement et le temps passé à tenir les données à jour. Tu le sais dès l'installation, il n'y a rien de caché là-dedans.</p>
+    <p class="lead">L'objectif à terme : remplacer la pub par des <b>réductions négociées pour les chauffeurs</b> — lavage, pneus, entretien, assurance. Plus on est nombreux, plus ça devient possible.</p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Pas de compte, pas de fichage</div>
+    <p class="lead">Aucune inscription n'est demandée. <b>Pas de nom, pas de numéro, pas de plaque.</b></p>
+    <p class="lead">L'appli ne sait pas qui tu es et n'enregistre pas tes trajets. Ta position sert uniquement à trier les lieux par distance, sur ton téléphone, et n'est envoyée nulle part.</p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Un bon plan à partager ?</div>
+    <p class="lead">Une zone où patienter sans prendre d'amende, un fast-food ouvert la nuit avec un vrai parking, des toilettes accessibles : c'est le terrain qui fait la valeur de cette appli.</p>
+    <a class="btn btn--accent" style="margin-top:12px"
+       href="mailto:contact@example.com?subject=Bon%20plan%20VTC%20IDF&body=Lieu%20%3A%20%0AAdresse%20%2F%20ville%20%3A%20%0AParking%20%3A%20oui%20%2F%20non%0AToilettes%20%3A%20oui%20%2F%20non%0AHoraires%20%3A%20%0ARemarque%20%3A%20">
+       Envoyer un lieu</a>
+    <a class="btn btn--ghost" style="margin-top:8px"
+       href="mailto:contact@example.com?subject=Erreur%20dans%20l%27appli%20VTC%20IDF">
+       Signaler une erreur</a>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Les deux briefs</div>
+    <p class="lead">
+      <b>Toute l'IDF</b> donne le meilleur de la région. <b>Autour de moi</b>
+      ne garde que ce qui est à moins de 10 km de toi — arrivées, événements et
+      fermetures. Ta position est relue à chaque ouverture : ferme l'app à Orly,
+      rouvre-la dans Paris, le secteur suit.
+    </p>
+    <p class="lead" style="margin-top:10px;color:#8A93A6;font-size:13.5px">
+      Ta position ne quitte jamais ton téléphone : le tri se fait sur place, et
+      le serveur envoie le même brief à tout le monde.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Les flammes</div>
+    <p class="lead">Elles notent la demande qu'un endroit peut générer.</p>
+    <div class="row">
+      <div class="row__time"><span class="tag tag--demand-3">🔥🔥🔥</span></div>
+      <div class="row__body">
+        <p class="row__title">On y va</p>
+        <p class="row__sub">Un gros vol du matin à Roissy, un concert à l'Accor
+          Arena, dix TGV à Montparnasse.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row__time"><span class="tag tag--demand-2">🔥🔥</span></div>
+      <div class="row__body">
+        <p class="row__title">Ça vaut le détour</p>
+        <p class="row__sub">Une salle moyenne qui se vide, une bonne tranche
+          dans une grande gare.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row__time"><span class="tag tag--demand-1">🔥</span></div>
+      <div class="row__body">
+        <p class="row__title">Il y a de quoi faire</p>
+        <p class="row__sub">Si tu es déjà dans le coin, ça se tente.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row__time" style="color:#5C6578">—</div>
+      <div class="row__body">
+        <p class="row__title">Rien d'écrit</p>
+        <p class="row__sub">Pas de quoi se déplacer exprès. La ligne reste
+          affichée pour que tu voies ce qui se passe, c'est tout.</p>
+      </div>
+    </div>
+    <p class="lead" style="margin-top:10px;color:#8A93A6;font-size:13.5px">
+      La note vient d'un calcul : places des trains, sièges réellement
+      installés dans les avions, jauge des salles — puis la part des gens qui
+      prennent une voiture plutôt que le métro. <b>Ce n'est pas ta demande à
+      toi</b> : c'est ce que la zone peut générer, tous chauffeurs et tous
+      taxis confondus. Trois flammes veut dire « c'est là qu'il faut être »,
+      pas « tu vas enchaîner ».
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">D'où viennent les infos</div>
+    <p class="lead">
+      <b>Trains</b> — horaires d'arrivée SNCF, en temps réel quand la clé est
+      en place, sinon l'horaire théorique publié en données ouvertes.<br>
+      <b>Vols</b> — programme Air France, KLM et Transavia à Roissy et Orly.<br>
+      <b>Événements</b> — billetteries et agendas officiels des salles de plus
+      de 5 000 places, Porte de Versailles et Villepinte, plus les matchs de
+      Ligue 1 à domicile.<br>
+      <b>Toilettes</b> — sanisettes de la Ville de Paris dans Paris,
+      OpenStreetMap en banlieue (© les contributeurs OpenStreetMap, ODbL).<br>
+      <b>Trafic</b> — fermetures des autoroutes, nationales et du périphérique,
+      publiées par Sytadin (Direction des routes d'Île-de-France) et reprises
+      avec son autorisation : celles de la nuit en cours, puis celles qui durent
+      jour et nuit — ces dernières sans date de fin, parce que la source n'en
+      donne pas.<br>
+      <b>Météo</b> — Open-Meteo, heure par heure. Un seul point, Paris centre :
+      une averse à Melun pendant qu'il fait beau à Nanterre n'entre pas dans une
+      icône. Les petites routes sont volontairement
+      absentes : ton GPS les contourne mieux que nous.
+    </p>
+  </div>
+
+  <p class="note" style="text-align:center">Version 1.0 — Île-de-France</p>
+</div>
+<script>
+/* ==========================================================================
+   VTC IDF — logique partagée par les 4 onglets GoodBarber
+   Hébergé sur le CDN (pas dans GoodBarber) : corriger un bug ici ne demande
+   ni republication de l'app ni nouvelle validation Apple.
+   ========================================================================== */
+
+var VTC = (function () {
+  'use strict';
+
+  // ⚠️ À remplacer par ton URL (GitHub Pages / Cloudflare Pages) après déploiement.
+  // window.__VTC_BASE permet de pointer ailleurs sans toucher ce fichier
+  // (c'est ce qu'utilise la prévisualisation locale).
+  var BASE = window.__VTC_BASE || 'https://TON-COMPTE.github.io/vtc-idf/data/';
+
+  var DEPTS = [
+    { code: 'all', label: 'Toute l’IDF' },
+    { code: '75',  label: 'Paris' },
+    { code: '92',  label: '92' },
+    { code: '93',  label: '93' },
+    { code: '94',  label: '94' },
+    { code: '95',  label: '95' },
+    { code: '78',  label: '78' },
+    { code: '91',  label: '91' },
+    { code: '77',  label: '77' }
+  ];
+
+  /* KINDS sert à l'icône de chaque ligne : on garde le détail, parce qu'un
+     concert, un match et un salon ne se ressemblent pas sur le terrain.     */
+  var KINDS = {
+    train:   { label: 'Trains',      ico: '🚆' },
+    flight:  { label: 'Vols',        ico: '✈️' },
+    concert: { label: 'Concert',     ico: '🎤' },
+    sport:   { label: 'Sport',       ico: '⚽' },
+    salon:   { label: 'Salon',       ico: '🏢' }
+  };
+
+  /* FILTERS sert aux pastilles de l'onglet « Où aller ». Concerts, sport et
+     salons sont réunis sous « Événements » : sur trois jours il y a rarement
+     les trois à la fois, et trois pastilles dont deux vides, c'est trois
+     occasions de cliquer pour ne rien trouver.                              */
+  /* Les pastilles sont du texte, sans émoji : trois couleurs vives alignées
+     en haut de l'écran tiraient l'œil avant le contenu, et « Trains » se lit
+     aussi vite qu'un train dessiné. */
+  var FILTERS = [
+    { code: 'train',  label: 'Trains',     kinds: ['train'] },
+    { code: 'flight', label: 'Vols',       kinds: ['flight'] },
+    { code: 'event',  label: 'Événements', kinds: ['concert', 'sport', 'salon'] }
+  ];
+
+  function inFilter(kind, code) {
+    if (code === 'all') return true;
+    for (var i = 0; i < FILTERS.length; i++) {
+      if (FILTERS[i].code === code) return FILTERS[i].kinds.indexOf(kind) !== -1;
+    }
+    return false;
+  }
+
+  /* ---- Tranches de la journée -------------------------------------------
+     Le titre de l'écran suit l'heure réelle d'ouverture de l'app.          */
+
+  function period(d) {
+    var h = d.getHours();
+    if (h >= 5  && h < 11) return { key: 'matin', label: 'Ce matin' };
+    if (h >= 11 && h < 14) return { key: 'midi',  label: 'Ce midi' };
+    if (h >= 14 && h < 18) return { key: 'aprem', label: 'Cet après-midi' };
+    if (h >= 18)           return { key: 'soir',  label: 'Ce soir' };
+    return { key: 'nuit', label: 'Cette nuit' };
+  }
+
+  /* Fin de la tranche courante : sert à séparer « maintenant » du « plus tard ». */
+  function periodEnd(d) {
+    var h = d.getHours(), end = new Date(d);
+    var bounds = [5, 11, 14, 18, 24];
+    for (var i = 0; i < bounds.length; i++) {
+      if (h < bounds[i]) { end.setHours(bounds[i], 0, 0, 0); return end; }
+    }
+    end.setHours(24, 0, 0, 0);
+    return end;
+  }
+
+  /* ---- Chargement des données -------------------------------------------
+     Si le réseau tombe, on réaffiche la dernière version connue plutôt que
+     de laisser un écran vide : un chauffeur en sous-sol garde son brief.   */
+
+  function load(name, cb) {
+    var key = 'vtc_cache_' + name;
+    var done = false;
+
+    function fromCache(reason) {
+      if (done) return;
+      var raw = null;
+      try { raw = localStorage.getItem(key); } catch (e) {}
+      if (!raw) { done = true; cb(reason || 'offline', null); return; }
+      try { done = true; cb(null, JSON.parse(raw), true); }
+      catch (e) { done = true; cb('corrupt', null); }
+    }
+
+    var to = setTimeout(function () { fromCache('timeout'); }, 8000);
+
+    fetch(BASE + name + '.json', { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('http ' + r.status);
+        return r.json();
+      })
+      .then(function (json) {
+        clearTimeout(to);
+        if (done) return;
+        done = true;
+        try { localStorage.setItem(key, JSON.stringify(json)); } catch (e) {}
+        cb(null, json, false);
+      })
+      .catch(function () { clearTimeout(to); fromCache('network'); });
+  }
+
+  /* ---- Temps ------------------------------------------------------------- */
+
+  function hhmm(iso) {
+    var d = new Date(iso);
+    return ('0' + d.getHours()).slice(-2) + 'h' + ('0' + d.getMinutes()).slice(-2);
+  }
+
+  function minutesUntil(iso) {
+    return Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+  }
+
+  function countdown(iso) {
+    var m = minutesUntil(iso);
+    if (m < -120) return 'terminé';
+    if (m < 0)    return 'en cours';
+    if (m === 0)  return 'maintenant';
+    if (m < 60)   return 'dans ' + m + ' min';
+    var h = Math.floor(m / 60), r = m % 60;
+    return 'dans ' + h + ' h' + (r ? ' ' + ('0' + r).slice(-2) : '');
+  }
+
+  function dayLabel(d) {
+    var j = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    var m = ['janvier','février','mars','avril','mai','juin',
+             'juillet','août','septembre','octobre','novembre','décembre'];
+    return j[d.getDay()] + ' ' + d.getDate() + ' ' + m[d.getMonth()];
+  }
+
+  /* ---- Géolocalisation et distances ------------------------------------- */
+
+  function distKm(lat1, lon1, lat2, lon2) {
+    var R = 6371, p = Math.PI / 180;
+    var dLat = (lat2 - lat1) * p, dLon = (lon2 - lon1) * p;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * p) * Math.cos(lat2 * p) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function fmtDist(km) {
+    if (km < 1) return Math.round(km * 1000) + ' m';
+    return (km < 10 ? km.toFixed(1) : Math.round(km)) + ' km';
+  }
+
+  /* `maxAge` dit jusqu'à quel âge une position déjà connue du téléphone fait
+     l'affaire. Pour une liste triée par distance, deux minutes suffisent. Pour
+     le brief « autour de moi », on demande 0 : on peut fermer l'application à
+     Orly et la rouvrir dans Paris, et le secteur n'est alors plus du tout le
+     même.                                                                   */
+  function locate(cb, maxAge) {
+    if (!navigator.geolocation) { cb('unsupported', null); return; }
+    navigator.geolocation.getCurrentPosition(
+      function (p) {
+        rememberGeo('ok');
+        cb(null, { lat: p.coords.latitude, lon: p.coords.longitude });
+      },
+      function (e) {
+        if (e.code === 1) rememberGeo('ko');   // refusé : on ne le repropose pas
+        cb(e.code === 1 ? 'denied' : 'unavailable', null);
+      },
+      { enableHighAccuracy: false, timeout: 9000,
+        maximumAge: maxAge === undefined ? 120000 : maxAge }
+    );
+  }
+
+  /* Rejoue `fn` quand l'écran redevient visible — c'est ce qui se passe quand
+     on rouvre l'application sans la relancer, ou qu'on revient d'un autre
+     onglet. Sans ça, une position prise à Orly resterait affichée à Paris.  */
+  function onReopen(fn, minGapMs) {
+    var last = Date.now(), gap = minGapMs || 30000;
+    function maybe() {
+      if (document.visibilityState === 'hidden') return;
+      if (Date.now() - last < gap) return;
+      last = Date.now();
+      fn();
+    }
+    document.addEventListener('visibilitychange', maybe);
+    window.addEventListener('pageshow', maybe);
+    window.addEventListener('focus', maybe);
+  }
+
+  /* ---- Ouverture du GPS -------------------------------------------------
+     Waze et Google Maps acceptent tous deux des coordonnées : on évite les
+     erreurs de géocodage d'adresse, fréquentes sur les sanisettes.         */
+
+  function wazeUrl(lat, lon) {
+    return 'https://waze.com/ul?ll=' + lat + '%2C' + lon + '&navigate=yes';
+  }
+
+  function gmapsUrl(lat, lon, label) {
+    var u = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon;
+    if (label) u += '&destination_place_id=&travelmode=driving';
+    return u;
+  }
+
+  /* ---- Waze ou Google Maps ? --------------------------------------------
+     Un chauffeur a son GPS et il n'en change pas. Lui proposer les deux à
+     chaque ligne, c'est un bouton sur deux qui ne servira jamais, et deux
+     fois moins de place pour ce qu'il doit lire. Le choix se fait une fois
+     dans Infos et tient dans le téléphone — il ne part nulle part.       */
+  var NAV_KEY = 'vtc_nav';
+  var NAVS = { waze: 'Waze', gmaps: 'Google Maps' };
+
+  function navPref() {
+    try {
+      var v = localStorage.getItem(NAV_KEY);
+      if (NAVS[v]) return v;
+    } catch (e) {}
+    return 'waze';                      // le plus répandu chez les chauffeurs
+  }
+
+  function setNavPref(v) {
+    try { localStorage.setItem(NAV_KEY, NAVS[v] ? v : 'waze'); } catch (e) {}
+  }
+
+  /* Un seul bouton, toujours : celui de l'application que le chauffeur a
+     choisie. Il se range à droite de la fiche, au niveau du nom.          */
+  function navButtons(lat, lon) {
+    var gmaps = navPref() === 'gmaps';
+    return '<div class="btn-pair btn-pair--seul">' +
+      '<a class="btn btn--accent" target="_blank" rel="noopener" href="' +
+      (gmaps ? gmapsUrl(lat, lon) : wazeUrl(lat, lon)) + '">' +
+      (gmaps ? 'Maps' : 'Waze') + '</a></div>';
+  }
+
+  /* Quand il n'y a de place que pour un seul lien — le « Y aller » des
+     listes — on suit la même préférence, Waze par défaut.               */
+  function navUrl(lat, lon) {
+    return navPref() === 'gmaps' ? gmapsUrl(lat, lon) : wazeUrl(lat, lon);
+  }
+
+  /* ---- La position a-t-elle déjà été accordée ? -------------------------
+     Retenu dès qu'une position arrive, dans n'importe quel onglet. C'est ce
+     qui permet au brief de s'ouvrir directement sur « Autour de moi » : si
+     le chauffeur a autorisé la localisation, son secteur est ce qu'il veut
+     voir en premier, pas toute l'Île-de-France.
+
+     On ne demande pas à `navigator.permissions` : iOS ne répond pas pour la
+     géolocalisation dans une WebView. Un fait observé vaut mieux qu'une API
+     qui répond « prompt » partout.                                       */
+  var GEO_KEY = 'vtc_geo';
+
+  function geoKnown() {
+    try { return localStorage.getItem(GEO_KEY); } catch (e) { return null; }
+  }
+
+  function rememberGeo(v) {
+    try { localStorage.setItem(GEO_KEY, v); } catch (e) {}
+  }
+
+  /* ---- Utilitaires d'affichage ------------------------------------------ */
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* On n'affiche pas de nombre de courses. L'estimation reste dans les
+     données — elle sert à classer et à choisir le bloc « maintenant » — mais
+     l'écrire donnait une fausse précision : personne ne peut promettre
+     « 149 courses ». Une note en flammes se lit sans lire, au feu rouge.
+
+     Quatre niveaux, calés pour qu'il y ait à peu près autant de lignes dans
+     chacun : trois flammes reste rare, donc ça veut encore dire quelque chose.
+     Les seuils sont ici, pas dans le script : les régler ne demande ni de
+     régénérer les données ni d'attendre le prochain passage du robot.       */
+  var DEMAND_3 = 200;   // 🔥🔥🔥 on y va
+  var DEMAND_2 = 100;   // 🔥🔥   ça vaut le détour
+  var DEMAND_1 = 45;    // 🔥     il y a de quoi faire
+
+  function demandTag(v) {
+    var n = !v || v < DEMAND_1 ? 0 : v >= DEMAND_3 ? 3 : v >= DEMAND_2 ? 2 : 1;
+    if (!n) return '';
+    return '<span class="tag tag--demand-' + n + '">' +
+           new Array(n + 1).join('🔥') + '</span>';
+  }
+
+  /* L'émoji d'une catégorie, enveloppé pour être désaturé par la feuille de
+     style : dans un écran monochrome, un avion bleu vif fait tache, alors que
+     la forme, elle, se reconnaît instantanément — c'est tout ce qu'on lui
+     demande. */
+  function ico(kind) {
+    var k = KINDS[kind];
+    return k && k.ico ? '<span class="ico">' + k.ico + '</span> ' : '';
+  }
+
+  function deptTag(d) {
+    return d ? '<span class="tag tag--dept">' + esc(d === '75' ? 'Paris' : d) + '</span>' : '';
+  }
+
+  /* Libellé d'un créneau : un seul horaire, ou une plage si c'est un groupe. */
+  function slotLabel(item) {
+    if (item.end && item.end !== item.start) return hhmm(item.start) + '–' + hhmm(item.end);
+    return hhmm(item.start);
+  }
+
+  /* ---- « 22h30 », oui, mais 22h30 de quoi ? --------------------------------
+     Pour une gare ou un aéroport, l'heure affichée est celle des arrivées.
+     Pour une salle, c'est celle de la SORTIE — le seul moment qui intéresse un
+     chauffeur — et elle est estimée, pas officielle : la billetterie ne publie
+     que l'heure du billet. Sans le mot « sortie » devant, on lit l'heure du
+     concert, et un concert à 22h30 à Bercy, ça n'existe pas.               */
+  var SORTIE = { concert: 1, sport: 1, salon: 1 };
+
+  function isSortie(item) {
+    return !!SORTIE[item && item.kind];
+  }
+
+  /* Une tranche s'écrit sur deux lignes, pas côte à côte : « 14h00–19h00 »
+     élargissait la colonne et décalait le titre de cette ligne-là toute seule.
+     Empilées, les heures gardent la largeur d'une seule, et tous les titres de
+     la liste commencent au même endroit.                                   */
+  function timeCell(item) {
+    if (!isSortie(item)) return esc(hhmm(item.start));   // arrivées : l'heure du créneau
+    var h = '<span class="row__when">sortie</span>' + esc(hhmm(item.start));
+    if (item.end && item.end !== item.start) {
+      h += '<span class="row__h2">' + esc(hhmm(item.end)) + '</span>';
+    }
+    return h;
+  }
+
+  function subLine(item) {
+    var bits = [];
+    if (item.venue) bits.push(esc(item.venue));
+    if (item.count && item.count > 1) bits.push(item.count + ' arrivées');
+    return bits.join(' · ');
+  }
+
+  /* Score : ce qui est gros et proche passe devant ce qui est gros et loin
+     dans le temps. Sert à choisir LE bloc « maintenant » de l'accueil.     */
+  function score(item) {
+    var m = minutesUntil(item.start);
+    if (m < -30) return -1;
+    var vol = item.volume || 5;
+    var decay = m <= 0 ? 1 : 1 / (1 + m / 45);
+    return vol * decay;
+  }
+
+  /* ---- Ce qui est encore devant soi -------------------------------------
+     Fin utile d'une ligne. Un créneau d'arrivées porte sa fin — « 18h-20h »
+     n'intéresse plus personne à 20h01. Un concert, lui, n'a pas d'heure de
+     fin publiée, et c'est pourtant à la SORTIE que la demande arrive : on le
+     garde donc affiché le temps qu'il dure, sans écrire nulle part une heure
+     de fin qu'on ne connaît pas.                                           */
+  var TAIL_MIN = { concert: 150, sport: 120 };
+
+  function endOf(it) {
+    if (it.end) return new Date(it.end).getTime();
+    return new Date(it.start).getTime() + (TAIL_MIN[it.kind] || 0) * 60000;
+  }
+
+  /* La journée de travail se termine à 6 h, comme la nuit. Les arrivées de
+     demain n'apparaissent donc qu'à partir de 6 h demain : à 23 h, personne
+     ne va se placer pour un TGV de 8 h du matin, et ces lignes-là poussaient
+     le reste hors de l'écran. Les événements échappent à la règle : un match
+     ou un salon de demain, ça se prépare la veille.                        */
+  var DAY_TO_H = 6;
+
+  function dayEnd(now) {
+    var d = new Date(now || Date.now());
+    var f = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_TO_H, 0, 0, 0);
+    if (d.getHours() >= DAY_TO_H) f.setDate(f.getDate() + 1);
+    return f;
+  }
+
+  var DU_JOUR = { flight: 1, train: 1 };   // ne dépassent pas la journée en cours
+
+  function live(items, now) {
+    var t = now ? +now : Date.now(), fin = dayEnd(t).getTime();
+    return (items || []).filter(function (it) {
+      if (endOf(it) <= t) return false;
+      if (DU_JOUR[it.kind] && new Date(it.start).getTime() >= fin) return false;
+      return true;
+    });
+  }
+
+  function upcoming(items, fromMin, toMin) {
+    return (items || []).filter(function (it) {
+      var m = minutesUntil(it.start);
+      var mEnd = it.end ? minutesUntil(it.end) : m;
+      if (mEnd < fromMin) return false;
+      return m <= toMin;
+    });
+  }
+
+  /* Une fermeture de nuit tient dans une soirée, et le JOUR compte autant que
+     l'heure : toutes affichent « 21h00 → 06h00 », donc sans la nuit concernée
+     on ne sait pas si c'est ce soir ou mardi prochain. Une perturbation de
+     chantier, elle, dure des semaines : on écrit alors la date de fin.      */
+  function spanLabel(from, to) {
+    var a = new Date(from), b = new Date(to);
+    if (b - a <= 20 * 3600 * 1000) return hhmm(from) + ' → ' + hhmm(to);
+    return 'jusqu\'au ' + b.getDate() + '/' + (b.getMonth() + 1);
+  }
+
+  /* ---- La nuit en cours --------------------------------------------------
+     Une « nuit » va de 21 h à 6 h. Avant 6 h du matin on est encore dans
+     celle de la veille ; à partir de 6 h, c'est celle du soir qui vient. La
+     bascule se fait donc toute seule à la première ouverture après 6 h, sans
+     rien attendre du serveur : c'est l'heure du téléphone qui décide.
+
+     Conséquence voulue : la liste ne montre qu'une nuit, jamais toute la
+     semaine. Et comme il n'y en a qu'une, inutile d'écrire le jour sur
+     chaque ligne.                                                          */
+  var NIGHT_FROM_H = 21, NIGHT_TO_H = 6;
+
+  function currentNight(now) {
+    var d = new Date(now || Date.now());
+    var debut = new Date(d.getFullYear(), d.getMonth(), d.getDate(), NIGHT_FROM_H, 0, 0, 0);
+    if (d.getHours() < NIGHT_TO_H) debut.setDate(debut.getDate() - 1);
+    var fin = new Date(debut.getTime());
+    fin.setDate(fin.getDate() + 1);
+    fin.setHours(NIGHT_TO_H, 0, 0, 0);
+    return { from: debut, to: fin };
+  }
+
+  /* Vrai si la fermeture concerne cette nuit-là : soit elle s'y inscrit, soit
+     c'est un chantier qui la recouvre.                                     */
+  function inNight(c, nuit) {
+    var a = new Date(c.from).getTime(), b = new Date(c.to).getTime();
+    return a < nuit.to.getTime() && b > nuit.from.getTime();
+  }
+
+  function nightTitle(nuit) {
+    var j = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    var f = nuit.to;
+    return 'Nuit de ' + j[nuit.from.getDay()] + ' à ' + j[f.getDay()] +
+           ', ' + NIGHT_FROM_H + 'h → ' + NIGHT_TO_H + 'h';
+  }
+
+  /* ---- Deux natures de fermeture ----------------------------------------
+     Celle qui ne vaut que cette nuit — « A86 extérieur, 21h → 6h » — et
+     celle qui dure : bretelle coupée 24h/24, chantier de plusieurs semaines.
+     Les mélanger donnait deux faux : un bandeau « 21h00 → 06h00 » sur une
+     bretelle fermée en permanence, et un écran vide le week-end, puisque la
+     DiRIF ne ferme presque rien la nuit du vendredi au dimanche — ces
+     soirs-là, tout ce qu'elle publie est justement du 24h/24.              */
+  function isStanding(c) {
+    return !!c.continu || c.kind === 'chantier';
+  }
+
+  function nightClosures(list, nuit) {
+    return (list || []).filter(function (c) {
+      return !isStanding(c) && inNight(c, nuit);
+    }).sort(function (a, b) { return new Date(a.from) - new Date(b.from); });
+  }
+
+  function standingClosures(list, now) {
+    var t = now ? +now : Date.now();
+    return (list || []).filter(function (c) {
+      if (!isStanding(c)) return false;
+      if (new Date(c.to).getTime() <= t) return false;
+      return new Date(c.from).getTime() <= t + 24 * 3600 * 1000;
+    }).sort(function (a, b) {
+      var w = { high: 0, medium: 1, low: 2 };
+      return (w[a.severity] === undefined ? 3 : w[a.severity]) -
+             (w[b.severity] === undefined ? 3 : w[b.severity]);
+    });
+  }
+
+  /* L'étiquette rouge. Une fermeture permanente n'a pas de date de fin —
+     Sytadin n'en publie aucune — et en inventer une serait pire que de le
+     dire : on écrit « en continu ».                                        */
+  function closureBadge(c) {
+    if (c.continu) return 'en continu';
+    return spanLabel(c.from, c.to);
+  }
+
+  /* ---- Aller d'un onglet à l'autre --------------------------------------
+     GoodBarber donne un lien interne par section ; la prévisualisation, elle,
+     vit dans une iframe et prévient sa coquille. Un seul endroit à toucher
+     si l'un des deux change.                                                */
+  function go(url) {
+    if (!url) return false;
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({ vtc: 'goto', url: url }, '*');
+        return true;
+      } catch (e) {}
+    }
+    window.location.href = url;
+    return true;
+  }
+
+  /* ---- La météo, en un coup d'œil ---------------------------------------
+     Il pleut, tout le monde commande. Une icône et une température en haut à
+     droite du brief : ça se lit sans lire. Cinq états seulement — au-delà,
+     une icône de vingt pixels ne veut plus rien dire. La nuit, le soleil
+     devient une lune : un grand soleil à deux heures du matin, ça décrédibilise
+     tout l'écran.                                                         */
+  var METEO_ICO = {
+    soleil: '☀️', soleil_nuageux: '⛅', nuageux: '☁️',
+    pluie: '🌧️', neige: '🌨️'
+  };
+  var METEO_NUIT = { soleil: '🌙', soleil_nuageux: '🌙' };
+
+  function heureCle(d) {
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           'T' + p(d.getHours()) + ':00';
+  }
+
+  /* Huit points, un par département : avec une position on prend le plus
+     proche, sinon Paris — qui est toujours le premier de la liste. C'est la
+     seule différence entre le brief régional et le brief perso côté météo, et
+     elle compte : il peut pleuvoir à Melun pendant qu'il fait beau à Cergy.
+
+     Pas de repli sur l'heure la plus proche : si le fichier ne contient pas
+     l'heure qu'il est, c'est qu'il date de plus d'un jour et demi. Afficher
+     la météo d'hier serait pire que de n'afficher aucune icône.           */
+  function meteoNow(meteo, pos, now) {
+    if (!meteo || !meteo.heures || !meteo.points || !meteo.points.length) return null;
+    var i = -1, cle = heureCle(new Date(now || Date.now()));
+    for (var k = 0; k < meteo.heures.length; k++) {
+      if (meteo.heures[k] === cle) { i = k; break; }
+    }
+    if (i < 0) return null;
+
+    var p = meteo.points[0];                       // Paris par défaut
+    if (pos) {
+      var mieux = Infinity;
+      meteo.points.forEach(function (q) {
+        var d = distKm(pos.lat, pos.lon, q.lat, q.lon);
+        if (d < mieux) { mieux = d; p = q; }
+      });
+    }
+    if (!p.ciel || i >= p.ciel.length) return null;
+    return { ciel: p.ciel[i], deg: p.deg[i], nuit: p.nuit[i], dept: p.dept };
+  }
+
+  function meteoHtml(m) {
+    if (!m) return '';
+    var ico = (m.nuit && METEO_NUIT[m.ciel]) || METEO_ICO[m.ciel];
+    if (!ico) return '';
+    return '<div class="meteo" aria-label="météo">' +
+             '<span class="meteo__ico">' + ico + '</span>' +
+             '<span class="meteo__deg">' + esc(m.deg) + '°</span>' +
+           '</div>';
+  }
+
+  /* ---- Manger la nuit ----------------------------------------------------
+     Chaque fiche OpenStreetMap porte son ouverture et sa fermeture pour les
+     sept jours, en minutes depuis minuit — au-delà de 1440, c'est après
+     minuit. On lit le jour où la NUIT a commencé, pas le jour courant : à
+     trois heures du matin, le McDonald's qui ferme à 4 h relevait d'hier.  */
+  function mangerEtat(it, now) {
+    if (!it || !it.f || !it.o) return null;        // fiche saisie à la main
+    var t = new Date(now || Date.now());
+    var nuit = currentNight(t);
+    var base = new Date(nuit.from.getFullYear(), nuit.from.getMonth(),
+                        nuit.from.getDate());
+    var idx = (base.getDay() + 6) % 7;             // lundi = 0, comme OSM
+    var f = it.f[idx], o = it.o[idx];
+    if (f === null || f === undefined) return null;      // fermé ce jour-là
+    var debut = new Date(base.getTime() + o * 60000);
+    var fin = new Date(base.getTime() + f * 60000);
+    if (fin <= t) return null;                     // déjà fermé
+    return { ouvert: t >= debut, debut: debut, fin: fin, h24: !!it.h24 };
+  }
+
+  /* ---- Mes échéances ------------------------------------------------------
+     Carte VTC, visite médicale, formation continue : des dates qu'on oublie et
+     qui arrêtent l'activité le jour où elles tombent. Tout reste dans le
+     téléphone — rien n'est envoyé, rien n'est partagé : ce sont des papiers
+     personnels, pas des données d'application.                              */
+  var ECH_KEY = 'vtc_echeances';
+  /* `rappel` : combien de jours avant on commence à prévenir. La carte VTC a
+     le sien, bien plus long — le renouvellement prend environ deux mois en
+     préfecture, alors prévenir un mois avant, c'est prévenir trop tard.    */
+  var ECHEANCES = [
+    { code: 'carte',     label: 'Carte VTC',          duree: '5 ans', rappel: 90 },
+    { code: 'medical',   label: 'Visite médicale',     duree: '5 ans, 2 ans après 60 ans', rappel: 30 },
+    { code: 'formation', label: 'Formation continue', duree: '5 ans', rappel: 30 },
+    { code: 'assurance', label: 'Assurance',          duree: '1 an',  rappel: 30 },
+    { code: 'technique', label: 'Contrôle technique',  duree: '1 an',  rappel: 30 }
+  ];
+
+  function echeancesLues() {
+    try { return JSON.parse(localStorage.getItem(ECH_KEY) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+
+  function setEcheance(code, date) {
+    var tout = echeancesLues();
+    if (date) tout[code] = date; else delete tout[code];
+    try { localStorage.setItem(ECH_KEY, JSON.stringify(tout)); } catch (e) {}
+  }
+
+  /* Jours restants, en jours pleins : une échéance à 23 h ce soir, c'est
+     « aujourd'hui », pas « dans 0,4 jour ».                                */
+  function joursAvant(date, now) {
+    var d = new Date(date + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    var t = new Date(now || Date.now());
+    t = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    return Math.round((d.getTime() - t.getTime()) / 86400000);
+  }
+
+  function echeances(now) {
+    var tout = echeancesLues();
+    return ECHEANCES.map(function (e) {
+      var date = tout[e.code] || '';
+      return {
+        code: e.code, label: e.label, duree: e.duree, rappel: e.rappel,
+        date: date, jours: date ? joursAvant(date, now) : null
+      };
+    });
+  }
+
+  /* La plus urgente, si elle mérite d'apparaître dans le brief. Chacune a son
+     propre délai : trois mois pour la carte VTC, un mois pour les autres. */
+  function echeanceUrgente(now) {
+    var pire = null;
+    echeances(now).forEach(function (e) {
+      if (e.jours === null || e.jours > (e.rappel || 30)) return;
+      if (!pire || e.jours < pire.jours) pire = e;
+    });
+    return pire;
+  }
+
+  /* Rayon du brief « autour de moi ». Dix kilomètres, c'est le quart d'heure
+     de route qu'on accepte de faire pour se repositionner.                  */
+  var NEAR_KM = 10;
+
+  /* Les codes de locate() sont techniques : on les traduit une seule fois,
+     ici, pour que chaque onglet dise la même chose.                        */
+  var GEO_MSG = {
+    denied: 'Tu as refusé la position. Autorise-la dans les réglages de ton ' +
+            'téléphone pour avoir le brief autour de toi.',
+    unavailable: 'Position introuvable pour le moment — ça arrive en ' +
+                 'souterrain ou en parking.',
+    unsupported: 'Ce téléphone ne donne pas la position à l\'application.'
+  };
+
+  function geoMessage(err) {
+    return GEO_MSG[err] || 'Position indisponible.';
+  }
+
+  /* ---- Ouvrir les réglages du téléphone ---------------------------------
+     Il n'existe AUCUN moyen standard de le faire depuis une page web. iOS
+     bloque les schémas « prefs: » dans une WebView — et Apple refuse les apps
+     qui les utilisent ; Android accepte « intent:// » dans Chrome, mais pas
+     dans une WebView sauf si l'application hôte le gère.
+
+     La fonction ci-dessous renvoie donc `false` : elle ne sait pas faire, et
+     l'interface affiche la marche à suivre à la place. Si le support
+     GoodBarber confirme un jour une méthode de son App API pour ça, c'est
+     l'unique endroit à modifier — renvoyer `true` après l'avoir appelée.   */
+  function openAppSettings() {
+    return false;
+  }
+
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  /* Le chemin exact, par système : c'est ce qui remplace le bouton qu'on ne
+     peut pas faire. Mieux vaut quatre mots justes qu'un bouton qui échoue.
+     On ne l'affiche que si c'est bien une autorisation qui manque — « position
+     introuvable » dans un parking souterrain n'a rien à voir avec les
+     réglages, et y envoyer le chauffeur le ferait chercher pour rien.      */
+  function settingsHint(err) {
+    if (err && err !== 'denied' && err !== 'unsupported') {
+      return 'Ressaie dans un instant, ou sors du parking : le ciel dégagé ' +
+             'suffit en général.';
+    }
+    if (isIOS()) {
+      return 'Réglages → Confidentialité et sécurité → Service de ' +
+             'localisation → cette app → « Lorsque l\'app est active ».';
+    }
+    if (/Android/.test(navigator.userAgent)) {
+      return 'Réglages → Applications → cette app → Autorisations → ' +
+             'Position → « Autoriser uniquement si l\'app est utilisée ».';
+    }
+    return 'Autorise la localisation pour cette application dans les ' +
+           'réglages de ton appareil.';
+  }
+
+  /* Ne garde que ce qui est à portée. Un élément sans coordonnées est écarté
+     plutôt que supposé proche : mieux vaut en montrer moins que faire rouler
+     quelqu'un pour rien. L'appelant indique combien ont été écartés.        */
+  function near(items, pos, km) {
+    if (!pos) return { list: items || [], dropped: 0 };
+    var r = km || NEAR_KM, kept = [], dropped = 0;
+    (items || []).forEach(function (it) {
+      if (it.lat == null || it.lon == null) { dropped++; return; }
+      if (distKm(pos.lat, pos.lon, it.lat, it.lon) <= r) kept.push(it);
+    });
+    return { list: kept, dropped: dropped };
+  }
+
+  /* ---- Dans quel département suis-je ? ----------------------------------
+     On compare la position au centre des communes franciliennes, chargées
+     depuis zones.json. Tout se fait dans le téléphone : la position ne part
+     nulle part, contrairement à ce que ferait un géocodage inverse.
+
+     Une exception utile : si un lieu connu de l'application est à moins de
+     trois kilomètres, c'est SON département qui gagne. Les terminaux d'Orly
+     sont administrativement dans l'Essonne, mais un chauffeur posté là veut
+     la pastille sous laquelle sont rangés les vols d'Orly.                 */
+  var DEPT_ITEM_KM = 3;
+
+  function deptAt(pos, zones, items) {
+    if (!pos) return null;
+    var near = null, nd = DEPT_ITEM_KM;
+    (items || []).forEach(function (it) {
+      if (it.lat == null || it.lon == null || !it.dept) return;
+      var d = distKm(pos.lat, pos.lon, it.lat, it.lon);
+      if (d < nd) { nd = d; near = it.dept; }
+    });
+    if (near) return near;
+
+    var best = null, bd = Infinity;
+    (zones || []).forEach(function (z) {
+      var dlat = z[0] - pos.lat, dlon = (z[1] - pos.lon) * 0.66;
+      var d = dlat * dlat + dlon * dlon;      // comparaison seule : pas de racine
+      if (d < bd) { bd = d; best = z[2]; }
+    });
+    return best;
+  }
+
+  function activeClosures(closures, horizonMin) {
+    var now = Date.now();
+    return (closures || []).filter(function (c) {
+      var from = new Date(c.from).getTime();
+      var to   = new Date(c.to).getTime();
+      if (to < now) return false;
+      return from <= now + (horizonMin || 180) * 60000;
+    });
+  }
+
+  /* ---- Fraîcheur des données -------------------------------------------- */
+
+  function freshness(generatedAt, cached) {
+    if (!generatedAt) return { stale: true, text: 'données indisponibles' };
+    var ageMin = Math.round((Date.now() - new Date(generatedAt).getTime()) / 60000);
+    if (cached)       return { stale: true,  text: 'hors ligne · ' + hhmm(generatedAt) };
+    if (ageMin > 180) return { stale: true,  text: 'mis à jour à ' + hhmm(generatedAt) };
+    return { stale: false, text: 'à jour · ' + hhmm(generatedAt) };
+  }
+
+  /* ---- Filtres ----------------------------------------------------------- */
+
+  /* Change la pastille active sans re-créer les boutons : rappeler
+     renderChips ajouterait un deuxième écouteur de clic, et chaque clic
+     déclencherait deux rendus.                                             */
+  function setActiveChip(host, code) {
+    Array.prototype.forEach.call(host.querySelectorAll('.chip'), function (c) {
+      c.setAttribute('aria-pressed',
+        c.getAttribute('data-code') === code ? 'true' : 'false');
+    });
+  }
+
+  function renderChips(host, list, active, onPick) {
+    host.innerHTML = list.map(function (o) {
+      return '<button class="chip" type="button" aria-pressed="' +
+             (o.code === active ? 'true' : 'false') + '" data-code="' + esc(o.code) + '">' +
+             esc(o.label) + '</button>';
+    }).join('');
+    host.addEventListener('click', function (e) {
+      var b = e.target.closest('.chip');
+      if (!b) return;
+      Array.prototype.forEach.call(host.querySelectorAll('.chip'), function (c) {
+        c.setAttribute('aria-pressed', c === b ? 'true' : 'false');
+      });
+      onPick(b.getAttribute('data-code'));
+    });
+  }
+
+  return {
+    BASE: BASE, DEPTS: DEPTS, KINDS: KINDS,
+    period: period, periodEnd: periodEnd, load: load,
+    hhmm: hhmm, minutesUntil: minutesUntil, countdown: countdown, dayLabel: dayLabel,
+    distKm: distKm, fmtDist: fmtDist, locate: locate,
+    wazeUrl: wazeUrl, gmapsUrl: gmapsUrl, navButtons: navButtons,
+    esc: esc, demandTag: demandTag, deptTag: deptTag,
+    FILTERS: FILTERS, inFilter: inFilter,
+    slotLabel: slotLabel, subLine: subLine,
+    score: score, upcoming: upcoming, activeClosures: activeClosures,
+    live: live, endOf: endOf, dayEnd: dayEnd, go: go,
+    navUrl: navUrl, navPref: navPref, setNavPref: setNavPref, NAVS: NAVS,
+    geoKnown: geoKnown,
+    timeCell: timeCell, isSortie: isSortie, ico: ico,
+    meteoNow: meteoNow, meteoHtml: meteoHtml,
+    mangerEtat: mangerEtat,
+    ECHEANCES: ECHEANCES, echeances: echeances,
+    setEcheance: setEcheance, echeanceUrgente: echeanceUrgente,
+    joursAvant: joursAvant,
+    spanLabel: spanLabel, near: near, NEAR_KM: NEAR_KM, geoMessage: geoMessage,
+    currentNight: currentNight, inNight: inNight, nightTitle: nightTitle,
+    nightClosures: nightClosures, standingClosures: standingClosures,
+    closureBadge: closureBadge,
+    onReopen: onReopen, openAppSettings: openAppSettings, settingsHint: settingsHint,
+    deptAt: deptAt,
+    freshness: freshness, renderChips: renderChips, setActiveChip: setActiveChip
+  };
+})();
+
+</script>
+<script>
+(function () {
+  'use strict';
+  /* Le choix est gardé dans le téléphone et relu par les autres onglets à
+     leur prochain affichage : rien à recharger, rien à envoyer au serveur. */
+  /* ---- Mes échéances --------------------------------------------------- */
+  var ech = document.getElementById('ech');
+
+  /* Rouge dès que le rappel commence — trois mois pour la carte VTC, dont le
+     renouvellement prend environ deux mois en préfecture. */
+  function etat(e) {
+    if (e.jours === null) return '';
+    if (e.jours < 0)   return ' <span class="tag tag--alert">expirée</span>';
+    if (e.jours === 0) return ' <span class="tag tag--alert">aujourd\'hui</span>';
+    if (e.jours <= (e.rappel || 30))
+      return ' <span class="tag tag--alert">dans ' + e.jours + ' j</span>';
+    if (e.jours <= 120) return ' <span class="tag">dans ' + e.jours + ' j</span>';
+    return ' <span class="tag tag--ok">dans ' + Math.round(e.jours / 30) + ' mois</span>';
+  }
+
+  function rendreEch() {
+    ech.innerHTML = VTC.echeances().map(function (e) {
+      return '<div class="row">' +
+        '<div class="row__body">' +
+          '<p class="row__title">' + VTC.esc(e.label) + etat(e) + '</p>' +
+          '<p class="row__sub">valable ' + VTC.esc(e.duree) + '</p>' +
+        '</div>' +
+        '<div class="row__right">' +
+          '<input class="ech-date" type="date" data-code="' + e.code +
+            '" value="' + VTC.esc(e.date) + '" aria-label="' + VTC.esc(e.label) + '">' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  ech.addEventListener('change', function (e) {
+    var champ = e.target.closest('.ech-date');
+    if (!champ) return;
+    VTC.setEcheance(champ.getAttribute('data-code'), champ.value);
+    rendreEch();
+  });
+
+  rendreEch();
+
+  /* ---- Ton GPS ----------------------------------------------------------- */
+  var host = document.getElementById('nav');
+  VTC.renderChips(host, [
+    { code: 'waze',  label: 'Waze' },
+    { code: 'gmaps', label: 'Google Maps' }
+  ], VTC.navPref(), function (c) {
+    VTC.setNavPref(c);
+    VTC.setActiveChip(host, c);
+  });
+})();
+</script>

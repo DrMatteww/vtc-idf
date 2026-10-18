@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VTC IDF — prévisualisation</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+  html,body{margin:0;height:100%;background:#0A0A0B;overflow:hidden;
+    font-family:Barlow,-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
+  iframe{position:fixed;inset:0 0 58px 0;width:100%;height:calc(100% - 58px);border:0}
+  nav{position:fixed;bottom:0;left:0;right:0;height:58px;display:flex;
+    background:#121214;border-top:1px solid #2A2A31;
+    padding-bottom:env(safe-area-inset-bottom,0)}
+  nav button{flex:1;background:none;border:0;border-top:2px solid transparent;
+    color:#63636C;font-size:10.5px;letter-spacing:.3px;
+    font-weight:600;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:3px;cursor:pointer;font-family:inherit}
+  nav button span{font-size:18px;line-height:1;filter:grayscale(1);opacity:.8}
+  nav button.on{color:#F4F4F5;border-top-color:#FFF}
+  nav button.on span{opacity:1}
+</style></head><body>
+<iframe id="f" src="01-brief.html"></iframe>
+<nav id="n"><button data-src='01-brief.html' class=on><span>&#128196;</span>Brief</button><button data-src='02-ou-aller.html'><span>&#128205;</span>Où aller</button><button data-src='03-sur-la-route.html'><span>&#128663;</span>Sur la route</button><button data-src='04-infos.html'><span>&#8505;</span>Infos</button></nav>
+<script>
+  var n=document.getElementById('n'),f=document.getElementById('f');
+  function aller(src){
+    var fichier=String(src).split('#')[0];
+    [].forEach.call(n.children,function(c){
+      c.className=c.getAttribute('data-src')===fichier?'on':'';});
+    f.src=src;
+  }
+  n.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b)return;
+    aller(b.getAttribute('data-src'));
+  });
+  /* Un onglet qui renvoie vers un autre : GoodBarber a ses liens internes,
+     la prévisualisation a cette coquille. */
+  window.addEventListener('message',function(e){
+    var d=e.data||{}; if(d.vtc!=='goto'||!d.url)return; aller(d.url);
+  });
+</script></body></html>

@@ -1,0 +1,11 @@
+nom;stop_area;gtfs_nom;dept;lat;lon;terminus;verifie
+Gare de Lyon;stop_area:SNCF:87686006;Paris Gare de Lyon;75;48.8443;2.3744;1;1
+Gare Montparnasse;stop_area:SNCF:87391003;Paris Montparnasse;75;48.8413;2.3200;1;1
+Gare du Nord;stop_area:SNCF:87271007;Paris Gare du Nord;75;48.8809;2.3553;1;1
+Gare de l'Est;stop_area:SNCF:87113001;Paris Est;75;48.8766;2.3590;1;1
+Gare Saint-Lazare;stop_area:SNCF:87384008;Paris Saint-Lazare;75;48.8757;2.3254;1;1
+Gare d'Austerlitz;stop_area:SNCF:87547000;Paris Austerlitz;75;48.8422;2.3660;1;1
+Gare de Bercy;stop_area:SNCF:87686667;Paris Bercy;75;48.8390;2.3824;1;1
+Massy TGV;stop_area:SNCF:87393009;Massy TGV;91;48.7254;2.2612;0;1
+Marne-la-Vallée Chessy;stop_area:SNCF:87111849;Marne-la-Vallée Chessy;77;48.8699;2.7822;0;1
+Aéroport CDG 2 TGV;stop_area:SNCF:87271494;Aéroport Charles de Gaulle 2 TGV;93;49.0043;2.5709;0;1

@@ -1,0 +1,16 @@
+aeroport;terminal;nom;dept;lat;lon;verifie
+CDG;1;Roissy CDG — Terminal 1;95;49.01440;2.54185;0
+CDG;2A;Roissy CDG — Terminal 2A;95;49.00259;2.56145;0
+CDG;2B;Roissy CDG — Terminal 2B;95;49.00440;2.56165;0
+CDG;2C;Roissy CDG — Terminal 2C;95;49.00278;2.56723;0
+CDG;2D;Roissy CDG — Terminal 2D;95;49.00476;2.56708;0
+CDG;2E;Roissy CDG — Terminal 2E;95;49.00458;2.58258;0
+CDG;2F;Roissy CDG — Terminal 2F;95;49.00586;2.57676;0
+CDG;2G;Roissy CDG — Terminal 2G;95;49.00494;2.60217;0
+CDG;3;Roissy CDG — Terminal 3;95;49.01417;2.55876;0
+CDG;*;Roissy CDG;95;49.00800;2.57000;0
+ORY;1;Orly 1;94;48.72885;2.35950;0
+ORY;2;Orly 2;94;48.72885;2.35950;0
+ORY;3;Orly 3;94;48.72691;2.36194;0
+ORY;4;Orly 4;94;48.72875;2.36969;0
+ORY;*;Orly;94;48.72800;2.36300;0
