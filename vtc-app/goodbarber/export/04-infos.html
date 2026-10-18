@@ -627,16 +627,12 @@ a { color: inherit; text-decoration: none; }
     <p class="lead">L'appli ne sait pas qui tu es et n'enregistre pas tes trajets. Ta position sert uniquement à trier les lieux par distance, sur ton téléphone, et n'est envoyée nulle part.</p>
   </div>
 
-  <div class="card">
-    <div class="card__label">Un bon plan à partager ?</div>
-    <p class="lead">Une zone où patienter sans prendre d'amende, un fast-food ouvert la nuit avec un vrai parking, des toilettes accessibles : c'est le terrain qui fait la valeur de cette appli.</p>
-    <a class="btn btn--accent" style="margin-top:12px"
-       href="mailto:contact@example.com?subject=Bon%20plan%20VTC%20IDF&body=Lieu%20%3A%20%0AAdresse%20%2F%20ville%20%3A%20%0AParking%20%3A%20oui%20%2F%20non%0AToilettes%20%3A%20oui%20%2F%20non%0AHoraires%20%3A%20%0ARemarque%20%3A%20">
-       Envoyer un lieu</a>
-    <a class="btn btn--ghost" style="margin-top:8px"
-       href="mailto:contact@example.com?subject=Erreur%20dans%20l%27appli%20VTC%20IDF">
-       Signaler une erreur</a>
-  </div>
+  <!-- Carte « Un bon plan à partager ? » retirée en attendant mieux.
+       Elle ouvrait l'application mail du chauffeur avec un message préparé
+       — Lieu, Adresse, Parking, Toilettes, Horaires — pour alimenter les
+       référentiels. Une boîte de réception interne à GoodBarber fera mieux :
+       pas d'adresse exposée, et les retours arrivent au même endroit.
+       Pour la rétablir telle quelle, voir l'historique du dépôt. -->
 
   <div class="card">
     <div class="card__label">Les deux briefs</div>

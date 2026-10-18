@@ -161,7 +161,12 @@ le script.
   carte reste affichée, simplement non cliquable. C'est le seul lien interne
   dont l'application a besoin : le bouton « Tout voir » a été retiré, la barre
   d'onglets faisant déjà ce travail.
-- Dans `04-infos.html`, remplace les deux `contact@example.com` par ton adresse.
+- La carte « Un bon plan à partager ? » a été retirée de `04-infos.html` : elle
+  ouvrait l'application mail du chauffeur, et une boîte de réception interne à
+  GoodBarber fera mieux — pas d'adresse exposée, et les retours terrain
+  arrivent tous au même endroit. Le gabarit de message (Lieu, Adresse,
+  Parking, Toilettes, Horaires) est dans l'historique du dépôt, prêt à être
+  rebranché.
 
 ---
 
