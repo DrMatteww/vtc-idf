@@ -2288,14 +2288,21 @@ def _multipart(champs, fichier):
 
 
 def _reverse_cache():
+    """Le cache des adresses, amorcé au besoin par la copie livrée.
+
+    Une adresse ne change pas : repartir de zéro sur une machine neuve, c'est
+    deux mille huit cents interrogations de la BAN pour réapprendre ce qu'on
+    sait déjà. La copie du projet évite ça, et les points qu'elle ne connaît pas
+    sont demandés normalement."""
     os.makedirs(CACHE, exist_ok=True)
     path = os.path.join(CACHE, "adresses.json")
-    if os.path.exists(path):
-        try:
-            with open(path, encoding="utf-8") as f:
-                return path, json.load(f)
-        except Exception:                                       # noqa: BLE001
-            pass
+    for source in (path, os.path.join(GRAINE, "adresses.json")):
+        if os.path.exists(source):
+            try:
+                with open(source, encoding="utf-8") as f:
+                    return path, json.load(f)
+            except Exception:                                   # noqa: BLE001
+                pass
     return path, {}
 
 
@@ -2380,6 +2387,11 @@ def commune_la_plus_proche(lat, lon, communes):
     return best or ("", "")
 
 
+# Copies de secours livrées avec le projet : elles ne servent que lorsqu'il n'y
+# a ni réponse fraîche ni cache. Voir `overpass` et `_reverse_cache`.
+GRAINE = os.path.join(HERE, "graine")
+
+
 def overpass(requete, nom, max_age_s=7 * 86400):
     """Interroge Overpass en changeant de miroir, et garde la réponse.
 
@@ -2421,6 +2433,18 @@ def overpass(requete, nom, max_age_s=7 * 86400):
         log("  ! Overpass injoignable : on garde la réponse du %s"
             % time.strftime("%d/%m", time.localtime(os.path.getmtime(path))))
         with gzip.open(path, "rt", encoding="utf-8") as f:
+            return json.load(f)
+
+    # Et s'il n'y a même pas de cache — première exécution sur une machine
+    # neuve — il reste la copie livrée avec le projet. C'est exactement ce qui
+    # s'est produit au premier passage sur GitHub : les cinq miroirs ont
+    # refusé, et l'application s'est retrouvée sans toilettes de banlieue ni
+    # fast-foods de nuit. Cette copie n'est jamais préférée à une réponse
+    # fraîche : dès qu'un miroir répond, elle est oubliée.
+    graine = os.path.join(GRAINE, "overpass-%s.json.gz" % nom)
+    if os.path.exists(graine):
+        log("  ! Overpass injoignable et pas de cache : copie livrée avec le projet")
+        with gzip.open(graine, "rt", encoding="utf-8") as f:
             return json.load(f)
     return None
 
