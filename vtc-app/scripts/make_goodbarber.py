@@ -35,10 +35,9 @@ SECTIONS = [
 CDN_CSS = re.compile(r'\s*<link rel="stylesheet" href="https://TON-COMPTE\.github\.io/vtc-idf/app\.css">')
 CDN_JS = re.compile(r'\s*<script src="https://TON-COMPTE\.github\.io/vtc-idf/app\.js"></script>')
 
-# ⚠️ À remplacer par l'adresse où sont publiés brief.json, lieux.json et
-# zones.json. Avec GitHub Pages, c'est .../vtc-idf/data/ — le slash final
-# compte.
-BASE_DONNEES = "https://TON-COMPTE.github.io/vtc-idf/data/"
+# L'adresse où l'Action publie brief.json, lieux.json et zones.json. Le slash
+# final compte : sans lui, l'application demanderait « …/vtc-idfbrief.json ».
+BASE_DONNEES = "https://drmatteww.github.io/vtc-idf/data/"
 
 ENTETE = """<!-- =========================================================================
      VTC IDF — section « %s »
@@ -93,6 +92,14 @@ accessibles en HTTP, à l'adresse indiquée tout en haut de chaque section
 (`window.__VTC_BASE`). Le plus simple est GitHub Pages : voir la section
 « Déployer » du README. Tant que cette adresse n'est pas valable, les écrans
 affichent « Pas de connexion » — c'est le comportement prévu, rien n'est cassé.
+
+## Si les accents s'affichent de travers
+
+« 22h00â€“00h00 » au lieu de « 22h00–00h00 », « Ã  » au lieu de « à » : la page
+qui entoure la section n'est pas en UTF-8. Ce n'est pas le contenu collé — il
+est en UTF-8 — mais la déclaration d'encodage de la page, qui doit être faite
+avant. Dans GoodBarber c'est le cas par défaut ; si ça arrive quand même,
+c'est là qu'il faut regarder.
 
 ## Après un changement
 

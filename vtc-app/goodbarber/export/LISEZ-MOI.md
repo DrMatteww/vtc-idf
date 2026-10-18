@@ -21,6 +21,14 @@ accessibles en HTTP, à l'adresse indiquée tout en haut de chaque section
 « Déployer » du README. Tant que cette adresse n'est pas valable, les écrans
 affichent « Pas de connexion » — c'est le comportement prévu, rien n'est cassé.
 
+## Si les accents s'affichent de travers
+
+« 22h00â€“00h00 » au lieu de « 22h00–00h00 », « Ã  » au lieu de « à » : la page
+qui entoure la section n'est pas en UTF-8. Ce n'est pas le contenu collé — il
+est en UTF-8 — mais la déclaration d'encodage de la page, qui doit être faite
+avant. Dans GoodBarber c'est le cas par défaut ; si ça arrive quand même,
+c'est là qu'il faut regarder.
+
 ## Après un changement
 
 Ces fichiers sont **générés**. On ne les modifie pas à la main : on édite

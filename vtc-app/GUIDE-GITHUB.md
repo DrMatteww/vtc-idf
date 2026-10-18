@@ -1,5 +1,20 @@
 # Mettre les données en ligne avec GitHub — pas à pas
 
+> **C'est fait.** Le dépôt `DrMatteww/vtc-idf` est en place, les deux clés sont
+> dans les secrets, l'Action tourne et les données sont publiées sur
+> **https://drmatteww.github.io/vtc-idf/data/**. Tu n'as rien à refaire : ce
+> guide reste là pour comprendre ce qui tourne, et pour les fois où tu voudras
+> y toucher — modifier un référentiel, relancer une mise à jour, lire un
+> journal d'exécution.
+>
+> Les trois endroits à connaître :
+>
+> - **Actions** → l'onglet qui montre les exécutions, et le bouton
+>   *Run workflow* pour en forcer une ;
+> - **vtc-app/scripts/sources/** → tes référentiels : `astuces.csv`,
+>   `evenements.csv`, `manger.csv` ;
+> - **Settings → Secrets** → tes deux clés, si tu les renouvelles un jour.
+
 Tu n'as jamais utilisé GitHub : ce guide suppose exactement ça. Compte une
 demi-heure la première fois. À la fin, tu auras une adresse comme
 
