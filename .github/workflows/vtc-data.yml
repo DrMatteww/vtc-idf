@@ -1,0 +1,69 @@
+# Régénère les données de l'appli VTC et les publie sur GitHub Pages.
+# Le brief tourne toutes les heures ; les lieux, une fois par semaine,
+# parce qu'ils ne bougent quasiment pas.
+
+name: Données VTC
+
+on:
+  schedule:
+    - cron: '7 * * * *'        # toutes les heures (UTC) : le brief
+    - cron: '20 4 * * 1'       # lundi : lieux + bornes
+  workflow_dispatch:            # bouton « Run workflow » pour forcer une mise à jour
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Le programme de vols d'Air France pèse 80 Mo et ne change que quelques
+      # fois par an. On garde l'extrait découpé d'une exécution à l'autre : le
+      # script renvoie alors l'ETag du fichier et data.gouv répond « 304 non
+      # modifié » en quelques octets. La clé change chaque semaine pour que le
+      # cache finisse quand même par se rafraîchir. Sans ce cache, tout
+      # fonctionne pareil — ce sont juste 80 Mo téléchargés chaque heure.
+      - name: Semaine courante (clé de cache)
+        id: semaine
+        run: echo "cle=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache de l'horaire des vols
+        uses: actions/cache@v4
+        with:
+          path: vtc-app/scripts/.cache
+          key: ssim-${{ steps.semaine.outputs.cle }}
+          restore-keys: ssim-
+
+      # Deux secrets, tous les deux facultatifs et gratuits :
+      #   SNCF_TOKEN        fait passer les trains du théorique au temps réel ;
+      #   TICKETMASTER_KEY  ajoute la programmation des grandes salles.
+      # Sans eux le brief s'écrit quand même, avec moins de contenu. Les vols,
+      # les agendas ouverts et les matchs de Ligue 1 ne demandent rien.
+      - name: Brief (trains, vols, événements, fermetures)
+        env:
+          SNCF_TOKEN: ${{ secrets.SNCF_TOKEN }}
+          TICKETMASTER_KEY: ${{ secrets.TICKETMASTER_KEY }}
+        run: python3 vtc-app/scripts/build_data.py --out public/data --only brief
+
+      # Toilettes, fast-foods de nuit, astuces et communes. Une fois par
+      # semaine : OpenStreetMap ne bouge pas d'un jour à l'autre, et les
+      # miroirs Overpass sont tenus par des bénévoles.
+      - name: Lieux (hebdomadaire)
+        if: github.event.schedule == '20 4 * * 1' || github.event_name == 'workflow_dispatch'
+        run: python3 vtc-app/scripts/build_data.py --out public/data --only lieux
+
+      - name: Copier la feuille de style et le script
+        run: cp vtc-app/cdn/app.css vtc-app/cdn/app.js public/
+
+      - name: Publier
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          keep_files: true        # garde les fichiers hebdomadaires entre deux runs horaires
