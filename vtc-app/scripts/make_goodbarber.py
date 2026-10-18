@@ -35,9 +35,21 @@ SECTIONS = [
 CDN_CSS = re.compile(r'\s*<link rel="stylesheet" href="https://TON-COMPTE\.github\.io/vtc-idf/app\.css">')
 CDN_JS = re.compile(r'\s*<script src="https://TON-COMPTE\.github\.io/vtc-idf/app\.js"></script>')
 
+# L'adresse publique réelle, celle que la GitHub Action alimente.
+CDN = "https://drmatteww.github.io/vtc-idf/"
+
 # L'adresse où l'Action publie brief.json, lieux.json et zones.json. Le slash
 # final compte : sans lui, l'application demanderait « …/vtc-idfbrief.json ».
 BASE_DONNEES = "https://drmatteww.github.io/vtc-idf/data/"
+
+ENTETE_CDN = """<!-- =========================================================================
+     VTC IDF — section « %s »
+     À COLLER DANS GOODBARBER : section de type « Custom » / contenu HTML.
+     Le style et la logique sont appelés depuis l'adresse publique : corriger
+     un bug plus tard ne demandera pas de recoller cette section.
+     Rien à modifier ici.
+     ========================================================================= -->
+"""
 
 ENTETE = """<!-- =========================================================================
      VTC IDF — section « %s »
@@ -114,6 +126,33 @@ profite alors aux quatre sections sans rien recoller.
 """
     open(os.path.join(OUT, "LISEZ-MOI.md"), "w", encoding="utf-8").write(lisez)
     print("export/ prêt — quatre sections autonomes + LISEZ-MOI.md")
+
+    # --- La version légère, celle de la production -----------------------
+    # Elle appelle la feuille de style et le script depuis l'adresse publique
+    # au lieu de les recopier : chaque section passe de soixante kilo-octets à
+    # une dizaine, assez court pour tenir dans un message, et une correction
+    # dans app.js profite aux quatre sections sans rien recoller.
+    out_cdn = os.path.join(SRC, "export-cdn")
+    os.makedirs(out_cdn, exist_ok=True)
+    for nom, titre in SECTIONS:
+        html = open(os.path.join(SRC, nom), encoding="utf-8").read()
+        # L'ordre compte : on insère l'adresse des données AVANT de remplacer
+        # les URL du CDN. Dans l'autre sens, le motif « TON-COMPTE » n'existe
+        # plus, la substitution ne trouve rien et la section part sans savoir
+        # où chercher ses données — elle s'affiche alors en « hors ligne ».
+        if not CDN_JS.search(html):
+            raise SystemExit("! appel à app.js introuvable dans %s" % nom)
+        html = CDN_JS.sub(
+            "\n<script>window.__VTC_BASE = 'https://TON-COMPTE.github.io/vtc-idf/data/';</script>"
+            "\n<script src=\"https://TON-COMPTE.github.io/vtc-idf/app.js\"></script>",
+            html, count=1)
+        html = html.replace("https://TON-COMPTE.github.io/vtc-idf/", CDN)
+        if "__VTC_BASE" not in html or "TON-COMPTE" in html:
+            raise SystemExit("! section %s mal assemblée" % nom)
+        bloc = (ENTETE_CDN % titre) + html
+        chemin = os.path.join(out_cdn, nom)
+        open(chemin, "w", encoding="utf-8").write(bloc)
+        print("  %-22s %6.1f Ko  (version légère)" % (nom, os.path.getsize(chemin) / 1024))
 
 
 if __name__ == "__main__":

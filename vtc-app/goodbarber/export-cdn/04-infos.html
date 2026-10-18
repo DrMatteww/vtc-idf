@@ -1,0 +1,228 @@
+<!-- =========================================================================
+     VTC IDF — section « Réglages »
+     À COLLER DANS GOODBARBER : section de type « Custom » / contenu HTML.
+     Le style et la logique sont appelés depuis l'adresse publique : corriger
+     un bug plus tard ne demandera pas de recoller cette section.
+     Rien à modifier ici.
+     ========================================================================= -->
+<!-- ===========================================================
+     ONGLET 4 — INFOS
+     Transparence sur le financement (promesse de l'onboarding),
+     sources des données, et boîte à suggestions : c'est elle qui
+     alimentera les fiches terrain et préparera la V3.
+     =========================================================== -->
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://drmatteww.github.io/vtc-idf/app.css">
+<style>
+  body { background:#0A0A0B; color:#F4F4F5; margin:0;
+         font-family:Barlow,-apple-system,BlinkMacSystemFont,Roboto,sans-serif; }
+  .lead { font-size:14.5px; line-height:1.55; color:#9A9AA3; margin:0 0 10px; font-weight:400; }
+  .lead:last-child { margin-bottom:0; }
+  .lead b { color:#F4F4F5; font-weight:600; }
+  /* Le champ de date doit rester lisible sur fond sombre : Safari et Chrome
+     le dessinent clair par défaut, d'où color-scheme. */
+  .ech-date {
+    color-scheme: dark;
+    background: transparent;
+    color: #F4F4F5;
+    border: 1px solid #2A2A31;
+    border-radius: 2px;
+    padding: 7px 8px;
+    font: inherit;
+    font-size: 14px;
+    min-height: 38px;
+  }
+</style>
+
+<div class="topbar">
+  <div class="topbar__left">
+    <h1 class="topbar__period">Réglages</h1>
+    <div class="topbar__meta"><span>L'appli des chauffeurs VTC d'Île-de-France</span></div>
+  </div>
+</div>
+
+<div class="stack">
+
+  <div class="card">
+    <div class="card__label">Mes échéances</div>
+    <p class="lead">Les dates qui arrêtent l'activité le jour où elles tombent.
+      Saisis-les une fois, le <b>brief te prévient à temps</b> : un mois avant,
+      et <b>trois mois</b> pour la carte VTC — son renouvellement prend environ
+      deux mois.</p>
+    <div id="ech"></div>
+    <p class="lead" style="margin-top:10px;color:#8A93A6;font-size:13.5px">
+      Ces dates restent dans ce téléphone : rien n'est envoyé, rien n'est
+      partagé. Ce sont tes papiers, pas des données d'application. Change de
+      téléphone et il faudra les resaisir.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Ton GPS</div>
+    <p class="lead">Choisis l'application qui s'ouvre quand tu appuies sur
+      « Y aller ». Un seul bouton partout, celui que tu utilises vraiment.</p>
+    <div class="filters" id="nav" style="padding:10px 0 0"></div>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Pourquoi c'est gratuit</div>
+    <p class="lead">L'appli est <b>gratuite, et le restera</b>. Pas d'abonnement, pas de version payante.</p>
+    <p class="lead">Elle est financée par de la <b>publicité</b>. C'est ce qui paie l'hébergement et le temps passé à tenir les données à jour. Tu le sais dès l'installation, il n'y a rien de caché là-dedans.</p>
+    <p class="lead">L'objectif à terme : remplacer la pub par des <b>réductions négociées pour les chauffeurs</b> — lavage, pneus, entretien, assurance. Plus on est nombreux, plus ça devient possible.</p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Pas de compte, pas de fichage</div>
+    <p class="lead">Aucune inscription n'est demandée. <b>Pas de nom, pas de numéro, pas de plaque.</b></p>
+    <p class="lead">L'appli ne sait pas qui tu es et n'enregistre pas tes trajets. Ta position sert uniquement à trier les lieux par distance, sur ton téléphone, et n'est envoyée nulle part.</p>
+  </div>
+
+  <!-- Carte « Un bon plan à partager ? » retirée en attendant mieux.
+       Elle ouvrait l'application mail du chauffeur avec un message préparé
+       — Lieu, Adresse, Parking, Toilettes, Horaires — pour alimenter les
+       référentiels. Une boîte de réception interne à GoodBarber fera mieux :
+       pas d'adresse exposée, et les retours arrivent au même endroit.
+       Pour la rétablir telle quelle, voir l'historique du dépôt. -->
+
+  <div class="card">
+    <div class="card__label">Les deux briefs</div>
+    <p class="lead">
+      <b>Toute l'IDF</b> donne le meilleur de la région. <b>Autour de moi</b>
+      ne garde que ce qui est à moins de 10 km de toi — arrivées, événements et
+      fermetures. Ta position est relue à chaque ouverture : ferme l'app à Orly,
+      rouvre-la dans Paris, le secteur suit.
+    </p>
+    <p class="lead" style="margin-top:10px;color:#8A93A6;font-size:13.5px">
+      Ta position ne quitte jamais ton téléphone : le tri se fait sur place, et
+      le serveur envoie le même brief à tout le monde.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">Les flammes</div>
+    <p class="lead">Elles notent la demande qu'un endroit peut générer.</p>
+    <div class="row">
+      <div class="row__time"><span class="tag tag--demand-3">🔥🔥🔥</span></div>
+      <div class="row__body">
+        <p class="row__title">On y va</p>
+        <p class="row__sub">Un gros vol du matin à Roissy, un concert à l'Accor
+          Arena, dix TGV à Montparnasse.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row__time"><span class="tag tag--demand-2">🔥🔥</span></div>
+      <div class="row__body">
+        <p class="row__title">Ça vaut le détour</p>
+        <p class="row__sub">Une salle moyenne qui se vide, une bonne tranche
+          dans une grande gare.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row__time"><span class="tag tag--demand-1">🔥</span></div>
+      <div class="row__body">
+        <p class="row__title">Il y a de quoi faire</p>
+        <p class="row__sub">Si tu es déjà dans le coin, ça se tente.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row__time" style="color:#5C6578">—</div>
+      <div class="row__body">
+        <p class="row__title">Rien d'écrit</p>
+        <p class="row__sub">Pas de quoi se déplacer exprès. La ligne reste
+          affichée pour que tu voies ce qui se passe, c'est tout.</p>
+      </div>
+    </div>
+    <p class="lead" style="margin-top:10px;color:#8A93A6;font-size:13.5px">
+      La note vient d'un calcul : places des trains, sièges réellement
+      installés dans les avions, jauge des salles — puis la part des gens qui
+      prennent une voiture plutôt que le métro. <b>Ce n'est pas ta demande à
+      toi</b> : c'est ce que la zone peut générer, tous chauffeurs et tous
+      taxis confondus. Trois flammes veut dire « c'est là qu'il faut être »,
+      pas « tu vas enchaîner ».
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card__label">D'où viennent les infos</div>
+    <p class="lead">
+      <b>Trains</b> — horaires d'arrivée SNCF, en temps réel quand la clé est
+      en place, sinon l'horaire théorique publié en données ouvertes.<br>
+      <b>Vols</b> — programme Air France, KLM et Transavia à Roissy et Orly.<br>
+      <b>Événements</b> — billetteries et agendas officiels des salles de plus
+      de 5 000 places, Porte de Versailles et Villepinte, plus les matchs de
+      Ligue 1 à domicile.<br>
+      <b>Toilettes</b> — sanisettes de la Ville de Paris dans Paris,
+      OpenStreetMap en banlieue (© les contributeurs OpenStreetMap, ODbL).<br>
+      <b>Trafic</b> — fermetures des autoroutes, nationales et du périphérique,
+      publiées par Sytadin (Direction des routes d'Île-de-France) et reprises
+      avec son autorisation : celles de la nuit en cours, puis celles qui durent
+      jour et nuit — ces dernières sans date de fin, parce que la source n'en
+      donne pas.<br>
+      <b>Météo</b> — Open-Meteo, heure par heure. Un seul point, Paris centre :
+      une averse à Melun pendant qu'il fait beau à Nanterre n'entre pas dans une
+      icône. Les petites routes sont volontairement
+      absentes : ton GPS les contourne mieux que nous.
+    </p>
+  </div>
+
+  <p class="note" style="text-align:center">Version 1.0 — Île-de-France</p>
+</div>
+<script>window.__VTC_BASE = 'https://drmatteww.github.io/vtc-idf/data/';</script>
+<script src="https://drmatteww.github.io/vtc-idf/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  /* Le choix est gardé dans le téléphone et relu par les autres onglets à
+     leur prochain affichage : rien à recharger, rien à envoyer au serveur. */
+  /* ---- Mes échéances --------------------------------------------------- */
+  var ech = document.getElementById('ech');
+
+  /* Rouge dès que le rappel commence — trois mois pour la carte VTC, dont le
+     renouvellement prend environ deux mois en préfecture. */
+  function etat(e) {
+    if (e.jours === null) return '';
+    if (e.jours < 0)   return ' <span class="tag tag--alert">expirée</span>';
+    if (e.jours === 0) return ' <span class="tag tag--alert">aujourd\'hui</span>';
+    if (e.jours <= (e.rappel || 30))
+      return ' <span class="tag tag--alert">dans ' + e.jours + ' j</span>';
+    if (e.jours <= 120) return ' <span class="tag">dans ' + e.jours + ' j</span>';
+    return ' <span class="tag tag--ok">dans ' + Math.round(e.jours / 30) + ' mois</span>';
+  }
+
+  function rendreEch() {
+    ech.innerHTML = VTC.echeances().map(function (e) {
+      return '<div class="row">' +
+        '<div class="row__body">' +
+          '<p class="row__title">' + VTC.esc(e.label) + etat(e) + '</p>' +
+          '<p class="row__sub">valable ' + VTC.esc(e.duree) + '</p>' +
+        '</div>' +
+        '<div class="row__right">' +
+          '<input class="ech-date" type="date" data-code="' + e.code +
+            '" value="' + VTC.esc(e.date) + '" aria-label="' + VTC.esc(e.label) + '">' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  ech.addEventListener('change', function (e) {
+    var champ = e.target.closest('.ech-date');
+    if (!champ) return;
+    VTC.setEcheance(champ.getAttribute('data-code'), champ.value);
+    rendreEch();
+  });
+
+  rendreEch();
+
+  /* ---- Ton GPS ----------------------------------------------------------- */
+  var host = document.getElementById('nav');
+  VTC.renderChips(host, [
+    { code: 'waze',  label: 'Waze' },
+    { code: 'gmaps', label: 'Google Maps' }
+  ], VTC.navPref(), function (c) {
+    VTC.setNavPref(c);
+    VTC.setActiveChip(host, c);
+  });
+})();
+</script>
