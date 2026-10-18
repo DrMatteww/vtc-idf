@@ -1,0 +1,544 @@
+/* ==========================================================================
+   VTC IDF — système de design « instrument de bord »
+   --------------------------------------------------------------------------
+   Ce qu'on a quitté : fond bleu nuit, ambre partout, cartes très arrondies,
+   dégradés. Lu par l'utilisateur comme « ça fait IA », et il avait raison :
+   c'est la signature visuelle par défaut de tout ce qui se génère aujourd'hui.
+
+   Ce qu'on vise : un outil professionnel qu'on lit au feu rouge. Les
+   références sont les applications de chauffeur et de transport — Uber
+   Driver, Flighty, Transit — et elles partagent trois partis pris :
+
+   1. NOIR NEUTRE, pas bleu nuit. Le bleu « habille » ; le gris neutre
+      disparaît et laisse exister le contenu.
+   2. LA TYPOGRAPHIE FAIT LA HIÉRARCHIE, pas la couleur. Une seule famille,
+      quatre graisses, des chiffres tabulaires. La couleur ne sert plus qu'à
+      dire quelque chose : rouge = attention, vert = ouvert, blanc = agis.
+   3. DES ANGLES VIFS. 3 px sur les cartes, 2 px sur le reste. Les grands
+      rayons appartiennent aux applications grand public ; un instrument de
+      travail a des arêtes.
+
+   Police : Barlow, un grotesque dessiné d'après la signalisation routière.
+   Chargée en « display=swap » : le texte s'affiche tout de suite dans la
+   police système si le réseau traîne, ce qui n'arrive jamais au bon moment
+   quand on roule.
+   ========================================================================== */
+
+:root {
+  /* Fonds — gris neutres. Pas de noir pur : sur OLED, le défilement bave. */
+  --bg:         #0A0A0B;
+  --surface:    #121214;
+  --surface-2:  #1B1B1F;
+  --line:       #2A2A31;
+  --line-soft:  #1E1E23;
+
+  /* Textes */
+  --text:       #F4F4F5;
+  --text-dim:   #9A9AA3;
+  --text-mute:  #63636C;
+
+  /* Sémantique — trois couleurs, trois significations, rien d'autre. */
+  --accent:     #FFFFFF;  /* action : c'est ici qu'on appuie */
+  --accent-ink: #0A0A0B;
+  --alert:      #FF4433;  /* fermeture, forte demande : le seul rouge */
+  --alert-bg:   #2B100C;
+  --alert-line: #5A1F18;
+  --ok:         #35D07F;  /* ouvert, disponible */
+  --ok-bg:      #0D2418;
+
+  --radius:     3px;
+  --radius-sm:  2px;
+  --tap:        48px;     /* cible tactile minimale : on tape au pouce */
+
+  --pad:        16px;
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Barlow, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;               /* jamais en dessous : lecture à bout de bras */
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+body {
+  padding-top: var(--safe-top);
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* Les émojis gardés pour leur lisibilité immédiate (une gare, un avion) sont
+   désaturés : ils redeviennent des pictogrammes et cessent de faire tache
+   dans un écran monochrome. Les flammes, elles, gardent leur couleur — c'est
+   une note, pas une icône. */
+.ico { filter: grayscale(1); opacity: .9; font-style: normal; }
+
+/* ---------- En-tête ------------------------------------------------------ */
+
+.topbar {
+  padding: 20px var(--pad) 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.topbar__left { min-width: 0; }
+
+/* L'icône d'abord, la température dessous : la forme se reconnaît de plus loin
+   qu'un chiffre, et c'est elle qui dit s'il va falloir rouler sous la pluie. */
+.meteo {
+  flex: none;
+  text-align: center;
+  line-height: 1;
+  padding-top: 2px;
+}
+.meteo__ico { display: block; font-size: 25px; }
+.meteo__deg {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  margin-top: 5px;
+}
+
+/* Un titre d'écran se lit d'un coup d'œil : gros, serré, en capitales de
+   petite taille pour l'ancrer dans l'interface plutôt que dans la prose. */
+.topbar__period {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.topbar__meta {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-mute);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  letter-spacing: 0.1px;
+}
+
+.dot {
+  width: 6px; height: 6px;
+  background: var(--ok);
+  flex: none;
+}
+.dot--stale { background: var(--text-mute); }
+
+/* ---------- Cartes ------------------------------------------------------- */
+
+.stack { padding: 0 var(--pad); display: flex; flex-direction: column; gap: 10px; }
+.stack:first-of-type { padding-top: 12px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: block;
+}
+
+/* Le filet vertical remplace le dégradé : il désigne sans colorer tout le
+   bloc, et il tient sur une seule ligne de CSS. */
+.card--hero  { border-left: 3px solid var(--accent); }
+.card--alert { border-left: 3px solid var(--alert); background: var(--surface); }
+
+.card__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.card--hero  .card__label { color: var(--text); }
+.card--alert .card__label { color: var(--alert); }
+
+.card__title {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 0 0 3px;
+}
+
+.card__sub { font-size: 14px; font-weight: 400; color: var(--text-dim); margin: 0; }
+
+/* ---------- Horaires : les chiffres sont les stars ----------------------- */
+
+.hero-time {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -1.2px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin: 4px 0 10px;
+}
+
+.hero-when {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 5px;
+}
+
+.countdown {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Lignes de liste --------------------------------------------- */
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: var(--tap);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.row:last-child { border-bottom: 0; }
+
+/* L'heure est en retrait tant qu'elle est lointaine ; celle qui approche
+   passe en blanc plein. La hiérarchie se fait en luminosité, pas en teinte :
+   une couleur de plus serait une information de moins. */
+.row__time {
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 54px;
+  flex: none;
+  letter-spacing: -0.3px;
+  color: var(--text-dim);
+}
+.row__time--soon { color: var(--text); }
+
+.row__h2 {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-mute);
+  margin-top: 1px;
+}
+.row__when {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 1px;
+}
+
+.row__body { flex: 1; min-width: 0; }
+/* Une ligne par titre, toujours. Le nom se coupe plutôt que de pousser la
+   pastille de département à la ligne : un « Marne-la-Vallée Che… » reconnaissable
+   vaut mieux qu'une liste dont les lignes n'ont pas deux fois la même hauteur. */
+.row__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.1px;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.row__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.row__sub {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin: 3px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+/* Deuxième ligne, même règle que la première : le texte se coupe, la note en
+   flammes ne descend jamais sur une troisième ligne. */
+.row__sub { flex-wrap: nowrap; }
+.row__what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+.row__right { flex: none; text-align: right; }
+
+/* ---------- Puces et étiquettes ----------------------------------------- */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* Les capitales vont aux étiquettes qui désignent — un département, une
+   alerte. Pas aux horaires : « JUSQU'À 00H00 » est plus large et moins lisible
+   que « jusqu'à 00h00 ». */
+.tag--dept, .tag--alert { text-transform: uppercase; }
+/* Le département est une précision, pas une information : il doit tenir sur
+   la ligne du lieu sans la faire passer à la ligne. */
+.tag--dept { border-color: var(--line-soft); color: var(--text-mute); font-size: 9.5px; padding: 1px 4px; }
+
+/* Trois niveaux de demande. Les flammes portent déjà leur couleur : leur
+   coller un aplat rouge par-dessus faisait trois pavés lumineux par écran,
+   en concurrence directe avec le rouge des fermetures — celui qui doit rester
+   le seul à vraiment alerter. La montée se fait donc par le filet, qui passe
+   du gris au rouge plein, et par le nombre de flammes. */
+.tag--demand-1 { border-color: var(--line); }
+.tag--demand-2 { border-color: #5E251E; }
+.tag--demand-3 { border-color: var(--alert); background: var(--alert-bg); }
+.tag--demand-1, .tag--demand-2, .tag--demand-3 {
+  padding: 1px 5px;
+  font-size: 10px;
+  letter-spacing: -1px;          /* les flammes se touchent, elles font bloc */
+}
+
+.tag--ok    { border-color: #1C4A33; color: var(--ok); }
+.tag--alert { border-color: var(--alert-line); background: var(--alert-bg); color: #FF8574; }
+
+/* Le département tient sur la ligne du lieu, la demande sur celle des
+   arrivées : une ligne de gagnée sur chaque bloc. */
+.card__title .tag { margin-left: 6px; vertical-align: middle; }
+.row__title .tag { flex: none; }
+
+/* ---------- Filtres (défilement horizontal) ------------------------------ */
+
+.filters {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px var(--pad);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.filters::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  user-select: none;
+}
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.filters--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* ---------- Sous-navigation (Sur la route) ------------------------------ */
+
+.subnav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 1px;
+  padding: 0;
+  background: var(--line-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Quatre tuiles jointives séparées d'un filet d'un pixel : une barre
+   d'instruments, pas quatre boutons posés sur un fond. */
+.subnav__item {
+  min-height: 56px;
+  border: 0;
+  border-top: 2px solid transparent;
+  background: var(--surface);
+  color: var(--text-mute);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.subnav__item[aria-pressed="true"] {
+  border-top-color: var(--accent);
+  color: var(--text);
+  background: var(--surface-2);
+}
+.subnav__ico { font-size: 18px; line-height: 1; filter: grayscale(1); opacity: .8; }
+.subnav__item[aria-pressed="true"] .subnav__ico { opacity: 1; }
+
+/* ---------- Boutons ------------------------------------------------------ */
+
+.btn {
+  min-height: var(--tap);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  width: 100%;
+  cursor: pointer;
+}
+/* Le blanc plein ne sert qu'à l'action principale d'un écran. S'il était sur
+   chaque ligne d'une liste, il ne voudrait plus rien dire. */
+.btn--accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  min-height: 44px;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.btn--ghost  { background: transparent; color: var(--text-dim); }
+
+.btn-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.btn-pair--seul { grid-template-columns: 1fr; }
+
+/* Dans une liste, le bouton de navigation est contourné : il se voit, sans
+   couvrir l'écran de pavés blancs. */
+.row__right .btn {
+  min-height: 38px;
+  width: auto;
+  padding: 0 14px;
+  font-size: 13px;
+  background: transparent;
+  border-color: var(--line);
+  color: var(--text);
+}
+.row__right .btn-pair { margin-top: 6px; }
+
+.navlink {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- Distance ----------------------------------------------------- */
+
+.dist {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.dist__unit {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  display: block;
+}
+
+/* ---------- États -------------------------------------------------------- */
+
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-dim);
+}
+.empty__ico { font-size: 30px; display: block; margin-bottom: 12px; filter: grayscale(1); opacity: .4; }
+.empty__title { font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 5px; }
+.empty p { margin: 0; font-size: 13.5px; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius);
+  height: 88px;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* ---------- Divers ------------------------------------------------------- */
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  padding: 22px var(--pad) 8px;
+  margin: 0;
+}
+
+.note {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-mute);
+  padding: 14px var(--pad) 0;
+  line-height: 1.5;
+}
+
+.count { font-size: 12px; color: var(--text-mute); font-weight: 600; }
+
+.hidden { display: none !important; }
