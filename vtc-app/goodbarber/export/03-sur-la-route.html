@@ -620,6 +620,25 @@ a { color: inherit; text-decoration: none; }
 
 .search-wrap { padding: 0 var(--pad) 10px; }
 
+/* ---------- L'étoile des favoris ----------------------------------------
+   Posée à gauche du bouton GPS, à la même hauteur. Grise tant qu'elle est
+   vide : un écran de douze lignes jaunes ne désignerait plus rien. */
+.star {
+  flex: none;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-mute);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.star--on { color: #F2C14E; }
+.star:focus-visible { outline: 1px solid var(--text-dim); outline-offset: 2px; }
+
 </style>
 <style>
   body { background:#0A0A0B; color:#F4F4F5; margin:0;
@@ -1166,15 +1185,57 @@ var VTC = (function () {
      des fiches saisies à la main.                                          */
   var MANGER = [
     { code: 'all',      label: 'Tout' },
+    { code: 'fav',      label: '★ Favoris' },
     { code: 'chaine',   label: 'Chaînes' },
     { code: 'sandwich', label: 'Grec · Sandwich' },
     { code: 'pizza',    label: 'Pizza' },
     { code: 'super',    label: 'Supérette' },
-    { code: 'station',  label: 'Station' }
+    { code: 'station',  label: 'Autoroute' }
   ];
+
+  /* ---- Les favoris ------------------------------------------------------
+     Une étoile par ligne, une liste gardée SUR LE TÉLÉPHONE et nulle part
+     ailleurs : rien n'est envoyé, rien n'est partagé, et l'app n'a pas de
+     compte. Même logique que les échéances et le choix du GPS.
+
+     On ne garde que des identifiants, pas des fiches : le jour où un
+     fast-food change d'horaires dans OpenStreetMap, le favori suit. Et si
+     une fiche disparaît de la base, son identifiant reste dans la liste sans
+     rien casser — il ne correspond simplement plus à rien.               */
+  var FAV_KEY = 'vtc_favoris';
+
+  function favoris() {
+    try {
+      var v = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
+      return Object.prototype.toString.call(v) === '[object Array]' ? v : [];
+    } catch (e) { return []; }
+  }
+
+  function estFavori(id) {
+    return favoris().indexOf(String(id)) !== -1;
+  }
+
+  function basculeFavori(id) {
+    id = String(id);
+    var l = favoris(), i = l.indexOf(id);
+    if (i === -1) l.push(id); else l.splice(i, 1);
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(l)); } catch (e) {}
+    return i === -1;                     // vrai si on vient de l'ajouter
+  }
+
+  /* L'étoile. Un bouton, pas un lien : il ne doit jamais ouvrir le GPS par
+     erreur, et il porte son état pour les lecteurs d'écran.              */
+  function etoile(id) {
+    var on = estFavori(id);
+    return '<button class="star' + (on ? ' star--on' : '') + '" type="button" ' +
+      'data-fav="' + esc(String(id)) + '" aria-pressed="' + (on ? 'true' : 'false') +
+      '" title="' + (on ? 'Retirer des favoris' : 'Garder en favori') + '">' +
+      (on ? '★' : '☆') + '</button>';
+  }
 
   function inManger(it, code) {
     if (!code || code === 'all') return true;
+    if (code === 'fav') return estFavori(it.id);
     return (it.t || 'autre') === code;
   }
 
@@ -1205,7 +1266,8 @@ var VTC = (function () {
     superette: '@super', supermarche: '@super', supermarches: '@super',
     epicerie: '@super', courses: '@super', alimentation: '@super',
     station: '@station', stations: '@station', essence: '@station',
-    carburant: '@station', pompe: '@station',
+    carburant: '@station', pompe: '@station', autoroute: '@station',
+    autoroutes: '@station', aire: '@station', aires: '@station',
     chaine: '@chaine', chaines: '@chaine', fastfood: '@chaine'
   };
 
@@ -1565,6 +1627,8 @@ var VTC = (function () {
     meteoNow: meteoNow, meteoHtml: meteoHtml,
     mangerEtat: mangerEtat, MANGER: MANGER, inManger: inManger,
     chercheManger: chercheManger, sansAccent: sansAccent,
+    favoris: favoris, estFavori: estFavori, basculeFavori: basculeFavori,
+    etoile: etoile,
     ECHEANCES: ECHEANCES, echeances: echeances,
     setEcheance: setEcheance, echeanceUrgente: echeanceUrgente,
     joursAvant: joursAvant,
@@ -1711,10 +1775,30 @@ var VTC = (function () {
           ? '<span class="dist">' + VTC.fmtDist(it._d) +
             '<span class="dist__unit">d\'ici</span></span>'
           : '') +
+        /* L'étoile n'existe que là où elle sert : on garde en favori un
+           endroit où manger, pas une sanisette.                          */
+        (tab === 'manger' ? VTC.etoile(it.id) : '') +
         VTC.navButtons(it.lat, it.lon) +
       '</div>' +
     '</div>';
   }
+
+  /* Un seul écouteur pour toutes les étoiles, posé une fois sur le conteneur :
+     la liste est réécrite à chaque filtre, et rattacher douze écouteurs à
+     chaque fois finit toujours par en oublier un. On ne redessine que
+     l'étoile touchée — sauf dans la liste des favoris, où retirer une ligne
+     doit la faire disparaître.                                            */
+  document.getElementById('body').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-fav]');
+    if (!b) return;
+    e.preventDefault();
+    var on = VTC.basculeFavori(b.getAttribute('data-fav'));
+    if (famille === 'fav') { paint(cache[TABS[tab].file]); return; }
+    b.className = 'star' + (on ? ' star--on' : '');
+    b.textContent = on ? '★' : '☆';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.setAttribute('title', on ? 'Retirer des favoris' : 'Garder en favori');
+  });
 
   function show() {
     options();
@@ -1837,7 +1921,13 @@ var VTC = (function () {
         ? VTC.chercheManger(list, quoi)
         : list.filter(function (it) { return VTC.inManger(it, famille); });
 
-      list = tout.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
+      /* Les favoris échappent au filtre « encore ouvert » : c'est une liste
+         qu'on a constituée soi-même, on veut la voir en entier, avec les
+         horaires de chacun. Partout ailleurs, on ne montre que ce qui est
+         ouvert — sinon l'onglet ne sert plus à rien à deux heures du matin. */
+      list = famille === 'fav' && !quoi
+        ? tout
+        : tout.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
 
       /* Chercher « mac do » à cinq heures du matin et tomber sur un écran
          vide est pire que la vérité : on montre alors les mêmes adresses,
@@ -1849,7 +1939,8 @@ var VTC = (function () {
        côté. Sans position, la liste n'est pas triée par distance — on en
        montre alors davantage, faute de mieux. En recherche, on en montre dix :
        on cherche une enseigne précise, pas ce qui est autour.            */
-    var combien = quoi ? 10 : (pos ? 5 : 12);
+    var combien = (tab === 'manger' && famille === 'fav') ? 50
+      : quoi ? 10 : (pos ? 5 : 12);
     var items = withDist(list).slice(0, combien);
 
     if (!items.length) {
@@ -1859,11 +1950,16 @@ var VTC = (function () {
           '<p>Essaie le nom de l\'enseigne (<b>mac do</b>, <b>kfc</b>), ' +
           'le genre (<b>grec</b>, <b>pizza</b>, <b>station</b>) ou une ' +
           'commune.</p></div>'
+        : tab === 'manger' && famille === 'fav'
+          ? '<div class="empty"><span class="empty__ico">☆</span>' +
+            '<p class="empty__title">Pas encore de favori</p>' +
+            '<p>Touche l\'étoile sur une ligne pour garder une adresse ici. ' +
+            'Elle reste sur ton téléphone.</p></div>'
         : tab === 'manger' && famille !== 'all'
           ? '<div class="empty"><span class="empty__ico">🍔</span>' +
             '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
-            '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Station</b>, ' +
-            'qui ferme rarement.</p></div>'
+            '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Grec · ' +
+            'Sandwich</b>, qui ferme tard.</p></div>'
           : '<div class="empty"><span class="empty__ico">🗒</span>' +
             '<p class="empty__title">Rien à afficher ici</p>' +
             '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
@@ -1919,12 +2015,12 @@ var VTC = (function () {
        est écrite sur chaque ligne, personne n'a à deviner.               */
     if (tab === 'manger')  html += '<p class="note">Ce qui est ouvert ' +
       '<b>cette nuit</b> — ou sur le point de l\'être, l\'heure est sur ' +
-      'chaque ligne. Fast-foods, grecs et sandwicheries, mais aussi ' +
-      'supérettes et boutiques de stations, souvent les seules ouvertes à ' +
-      'quatre heures du matin. Pour une <b>station</b>, « 24h/24 » décrit le ' +
-      'plus souvent les <b>pompes</b> : la boutique, elle, peut être fermée. ' +
-      'Horaires OpenStreetMap, renseignés par des contributeurs : vérifie ' +
-      'avant de faire dix kilomètres.</p>';
+      'chaque ligne. Fast-foods, grecs et sandwicheries, supérettes, et les ' +
+      '<b>aires d\'autoroute</b> qui ont une boutique : celles-ci viennent du ' +
+      'fichier officiel des prix des carburants, et l\'horaire affiché est ' +
+      'celui de la <b>boutique</b>, pas des pompes. Le reste vient ' +
+      'd\'OpenStreetMap, renseigné par des contributeurs : vérifie avant de ' +
+      'faire dix kilomètres.</p>';
     if (tab === 'wc')      html += '<p class="note">' +
       (pos ? 'Les 5 plus proches de toi. ' : 'Les 12 premières, faute de position. ') +
       'Dans Paris : sanisettes de la Ville. En banlieue : OpenStreetMap, ' +

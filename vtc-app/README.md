@@ -1025,23 +1025,93 @@ l'Essonne, 48 dans le Val-d'Oise, 47 dans les Yvelines. Les plus tardifs
 ferment à 6 h : Burger King au 80 avenue du Général-Leclerc (Paris 14e),
 McDonald's 111 cours de Vincennes (Paris 20e).
 
-#### Les courses de nuit : supérettes, supermarchés, stations
+#### Les courses de nuit : supérettes et supermarchés
 
 Un fast-food n'est pas toujours ce qu'on cherche. Une seconde requête ramène
-les **commerces** ouverts tard, avec le même filtre de nuit :
+les **commerces** ouverts tard, avec le même filtre de nuit : **253 supérettes
+et supermarchés** en Île-de-France, Monoprix, Monop', Casino, CocciMarket,
+Franprix, Carrefour City et Market — ceux de Paris principalement, ce qui
+correspond à ce qu'on voit la nuit.
 
-| | |
+#### Six familles, et pourquoi celles-là
+
+Un chauffeur qui cherche à manger à deux heures du matin ne cherche pas « un
+restaurant » : il cherche **du sûr** (une chaîne : il sait ce qu'il trouve, il
+y a un parking et souvent des toilettes), **du rapide** (grec, kebab, tacos,
+sandwich), ou **de quoi tenir jusqu'au matin** (supérette, station).
+
+| Pastille | Ce qu'elle contient | Combien |
+|---|---|---|
+| Tout | tout, y compris ce qui n'a pas de famille | 1 132 |
+| ★ Favoris | ce que le chauffeur a étoilé lui-même | sa liste |
+| Chaînes | marque reconnue : McDonald's, KFC, Burger King, Subway, O'Tacos… | 376 |
+| Grec · Sandwich | `cuisine` = kebab, sandwich, turkish, french_tacos, lebanese | 130 |
+| Pizza | `cuisine` = pizza | 57 |
+| Supérette | `shop` = supermarket ou convenience | 253 |
+| Autoroute | aires avec boutique, fichier officiel des carburants | 31 |
+
+Le reste — burger indépendant, poulet, asiatique, 267 + 14 fiches — n'a pas de
+pastille et vit sous « Tout ». C'est volontaire : **une pastille qui ne ramène
+rien est une déception de plus au volant**, et à trois heures du matin on ne
+cherche pas un poke.
+
+La catégorie est écrite **dans la donnée** (champ `t`), jamais devinée par
+l'application : elle vient des étiquettes OpenStreetMap via `categorie()`, ou
+de la colonne `type` des fiches saisies à la main. L'ordre de lecture compte :
+station, puis commerce, puis marque, puis cuisine — sans quoi un Carrefour
+City serait rangé dans « Chaînes » au lieu de « Supérette ».
+
+Conséquence assumée : quelques enseignes d'aéroport taguées `convenience` dans
+OpenStreetMap — Brioche Dorée, Pret A Manger au terminal 2E — se retrouvent en
+« Supérette ». C'est l'étiquette de la base, et pour un chauffeur à Roissy à
+trois heures du matin, savoir qu'il y a quelque chose d'ouvert dans le
+terminal est exactement ce qu'il veut.
+
+#### Les stations : 554 retirées, 31 gardées
+
+Première version : toutes les stations-service d'OpenStreetMap ouvertes la
+nuit, soit **554 points**. Le chauffeur a tranché, et il avait les chiffres du
+terrain : *« à part celle de l'A1 dans le 93, aucune station Carrefour n'ouvre
+la nuit »*.
+
+Il avait raison deux fois. D'abord sur les noms : sur les **69 fiches nommées
+Carrefour, 59 étaient des stations-service** — Flins, Bay 2, Garges,
+Chambourcy. Dans OpenStreetMap, la station d'un hypermarché porte le nom de
+l'enseigne et pas le sien : `name=Carrefour`, `amenity=fuel`,
+`opening_hours=24/7`. Ensuite sur le fond : ce `24/7` décrit **les pompes**. Un
+automate ne vend pas de sandwich.
+
+Les stations ne viennent donc plus d'OpenStreetMap, mais du **fichier officiel
+des prix des carburants** (`data.economie.gouv.fr`, sans clé, licence ouverte),
+qui dit exactement ce qu'il faut :
+
+| Champ | Ce qu'il donne |
 |---|---|
-| commerces avec horaires (supérettes, supermarchés, boutiques de stations) | **4 549** |
-| encore ouverts après 23 h | **882**, dont **661 ouverts 24h/24** |
-| retenus en Île-de-France après filtrage des départements | **807** |
-| dont boutiques de stations | **554** |
-| dont supérettes et supermarchés | **257** |
+| `pop` | `R` route ou **`A` autoroute** — le filtre demandé |
+| `services_service` | « Boutique alimentaire », « Toilettes publiques » |
+| `horaires` | les horaires de la **station**, jour par jour, pas ceux des pompes |
 
-Les stations sont la vraie découverte : **554 points ouverts 24h/24**, souvent
-les seuls dans une commune à quatre heures du matin, et là où on fait le plein
-de toute façon. `lieux.json` passe de 551 à 721 Ko — c'est un téléchargement
-hebdomadaire, gardé en cache sur le téléphone.
+Mesuré en Île-de-France : **827 stations, dont 38 sur autoroute, dont 31 avec
+une boutique alimentaire** — et parmi elles l'aire de **La Courneuve sur l'A1**,
+exactement celle que le chauffeur citait de mémoire. Ce sont ces 31 qui
+restent, les 554 autres sont parties.
+
+Sur les 31, **17 publient une semaine complète d'horaires** (souvent
+`00.00-00.00`, qui est la convention du fichier pour « en continu ») ; les 14
+autres portent « horaires non publiés » et restent affichées. On ne les
+convertit **pas** en 24h/24, même si sur une aire d'autoroute c'est
+vraisemblable : une fiche fausse est pire qu'une fiche vague. 29 des 31 ont des
+toilettes publiques, affichées comme telles.
+
+Le nom vient de l'adresse, pas de l'enseigne : *« AUTOROUTE A1 - AIRE DE LA
+COURNEUVE OUEST - SENS LILLE/PARIS »* devient **« Aire de La Courneuve Ouest ·
+A1 »**. Un chauffeur reconnaît une aire à son nom et à son autoroute, pas à sa
+marque de carburant. Le sens de circulation reste dans l'adresse, sous le nom.
+
+Garde-fou : le filtre qui écarte les stations d'OpenStreetMap est posé **à la
+lecture**, pas seulement dans la requête. Sans ça, une panne d'Overpass ferait
+ressortir les 554 stations depuis la graine livrée avec le projet — un retour
+en arrière silencieux, le pire genre.
 
 #### Six familles, et pourquoi celles-là
 
@@ -1129,6 +1199,30 @@ Dernier détail, celui qui évite la mauvaise surprise : si rien n'est **ouvert*
 à cette heure-ci, l'écran ne reste pas vide. Il montre les mêmes adresses avec
 l'étiquette « fermé maintenant » et le dit en une ligne — vérifié à 5 h du
 matin sur « pizza ».
+
+#### Les favoris : une étoile, et rien qui sorte du téléphone
+
+Une étoile sur chaque ligne de *Manger*, une pastille **★ Favoris** en tête des
+familles. Trois décisions :
+
+- **la liste ne quitte pas le téléphone.** Elle est dans `localStorage`, comme
+  le choix du GPS et les échéances. L'app n'a pas de compte, n'envoie rien, et
+  n'a pas à en avoir pour ça ;
+- **on ne garde que des identifiants, pas des fiches.** Le jour où un
+  fast-food change d'horaires dans OpenStreetMap, le favori suit. Et si une
+  fiche disparaît de la base, son identifiant reste dans la liste sans rien
+  casser ;
+- **les favoris échappent au filtre « encore ouvert ».** Partout ailleurs on
+  ne montre que ce qui est ouvert — sinon l'onglet ne sert à rien à deux
+  heures du matin. Mais une liste qu'on a constituée soi-même, on veut la voir
+  en entier, avec l'horaire de chacun. Les adresses fermées y portent
+  « fermé maintenant ».
+
+Côté code, un seul écouteur de clic posé sur le conteneur, jamais un par
+étoile : la liste est réécrite à chaque filtre, et rattacher douze écouteurs à
+chaque fois finit toujours par en oublier un. L'étoile touchée est redessinée
+sur place — sauf dans la liste des favoris, où retirer une ligne doit la faire
+disparaître.
 
 #### Ajouter ses propres adresses
 

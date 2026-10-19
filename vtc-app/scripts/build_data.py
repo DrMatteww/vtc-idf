@@ -2582,11 +2582,28 @@ OVERPASS_MANGER = ('[out:json][timeout:240];'
 # horaires, 882 passent minuit, dont 661 ouverts 24h/24 — et la moitié sont des
 # stations.
 OVERPASS_COURSES = ('[out:json][timeout:240];'
-                    '(nwr["shop"~"^(supermarket|convenience)$"]["opening_hours"]'
+                    'nwr["shop"~"^(supermarket|convenience)$"]["opening_hours"]'
                     '(48.12,1.45,49.24,3.56);'
-                    ' nwr["amenity"="fuel"]["shop"]["opening_hours"]'
-                    '(48.12,1.45,49.24,3.56););'
                     'out center tags;')
+
+# ---- Les stations : plus d'OpenStreetMap, le fichier officiel ------------
+# Première version : toutes les stations-service d'OpenStreetMap ouvertes la
+# nuit, soit 554 points. Le chauffeur a tranché, et il avait les chiffres du
+# terrain : « à part celle de l'A1 dans le 93, aucune station Carrefour n'ouvre
+# la nuit ». Ce qu'on affichait venait de `opening_hours` posé sur un nœud
+# `amenity=fuel` — c'est-à-dire, neuf fois sur dix, l'horaire des POMPES. Un
+# automate 24h/24 ne vend pas de sandwich.
+#
+# Le fichier officiel des prix des carburants dit, lui, ce qu'on veut savoir :
+#   pop                     R (route) ou A (autoroute) — le filtre demandé ;
+#   services_service        « Boutique alimentaire », « Toilettes publiques » ;
+#   horaires                les horaires de la STATION, jour par jour.
+# Gratuit, sans clé, licence ouverte. Mesuré en Île-de-France : 827 stations,
+# dont 38 sur autoroute, dont 31 avec une boutique alimentaire — et parmi
+# elles l'aire de La Courneuve sur l'A1, exactement celle que le chauffeur
+# citait de mémoire.
+PRIX_CARBURANTS = ("https://data.economie.gouv.fr/api/explore/v2.1/catalog/"
+                   "datasets/prix-des-carburants-en-france-flux-instantane-v2/records")
 
 # ---- Les catégories, et pourquoi celles-là ------------------------------
 # Un chauffeur qui cherche à manger à deux heures du matin ne cherche pas « un
@@ -2740,6 +2757,132 @@ def fetch_manger_osm(communes):
     return parse_manger_osm(res, communes, adresses_osm(res))
 
 
+RE_ROUTE = re.compile(r"\b(?:A|RN|N)\s?(\d{1,3}[A-Za-z]?)\b", re.I)
+RE_AIRE = re.compile(r"\bAIRE\s+(?:DE\s+|DES\s+|DU\s+|D'\s*)?(.+?)\s*$", re.I)
+
+
+def horaires_station(txt):
+    """Les sept jours du fichier officiel → nos deux listes de minutes.
+
+    Renvoie (None, None) dès qu'une journée manque : une semaine à trous
+    ferait disparaître la station un jour sur deux, ce qui est pire que de
+    dire « horaires non publiés ». Mesuré : 17 fiches sur 31 sont complètes.
+    « 00.00-00.00 » et « 01.00-01.00 » veulent dire ouvert en continu — c'est
+    la convention du fichier, pas une erreur de saisie."""
+    try:
+        h = json.loads(txt or "{}")
+    except ValueError:
+        return None, None
+    jours = h.get("jour") or []
+    if len(jours) != 7:
+        return None, None
+    ouverts, fermes, vus = [None] * 7, [None] * 7, 0
+    for i, j in enumerate(jours):
+        if j.get("@ferme"):
+            vus += 1
+            continue
+        plage = j.get("horaire")
+        if isinstance(plage, list):
+            plage = plage[0] if plage else None
+        if not plage:
+            continue
+        try:
+            a = [int(x) for x in plage["@ouverture"].replace(".", ":").split(":")[:2]]
+            b = [int(x) for x in plage["@fermeture"].replace(".", ":").split(":")[:2]]
+        except (KeyError, ValueError, IndexError):
+            continue
+        vus += 1
+        debut, fin = a[0] * 60 + a[1], b[0] * 60 + b[1]
+        if fin <= debut:
+            fin = debut + 1440                 # continu, ou passe minuit
+        ouverts[i], fermes[i] = debut, fin
+    return (ouverts, fermes) if vus == 7 else (None, None)
+
+
+def nom_station(adresse, ville):
+    """« AUTOROUTE A1 - AIRE DE LA COURNEUVE » → « Aire de La Courneuve · A1 ».
+
+    Le fichier officiel ne donne pas la marque, mais l'adresse porte mieux :
+    un chauffeur reconnaît une aire à son nom et à son autoroute, pas à son
+    enseigne."""
+    brut = " ".join((adresse or "").split())
+    route = RE_ROUTE.search(brut)
+    route = ("A" + route.group(1).upper()) if route else ""
+    aire = RE_AIRE.search(brut)
+    if aire:
+        # « AIRE DE LA COURNEUVE OUEST - SENS PROVINCE PARIS » : après le
+        # tiret ou « sens », c'est le sens de circulation. Il est déjà dans
+        # l'adresse, sous le nom ; le répéter mangerait la ligne.
+        court = re.split(r"\s+-\s+|\s+sens\s+", aire.group(1), 1, re.I)[0]
+        return "Aire de " + court.title()[:26].strip() + (" · " + route if route else "")
+    return "Station " + (route or ville or "").strip()
+
+
+def fetch_stations_autoroute():
+    """Aires d'autoroute avec boutique, d'après le fichier officiel des prix."""
+    depts = ",".join('"%s"' % d for d in sorted(IDF_DEPTS))
+    champs = ("id,cp,ville,adresse,latitude,longitude,horaires,"
+              "horaires_automate_24_24,services_service")
+    lignes, total = [], 1
+    for depart in range(0, 500, 100):
+        params = {"where": 'code_departement in (%s) and pop="A"' % depts,
+                  "limit": 100, "offset": depart, "select": champs}
+        try:
+            res = http_json(PRIX_CARBURANTS + "?" + urllib.parse.urlencode(params),
+                            timeout=40)
+        except Exception as e:                                  # noqa: BLE001
+            log("  ! prix des carburants : %s" % e)
+            break
+        lignes += res.get("results") or []
+        total = res.get("total_count") or 0
+        if len(lignes) >= total:
+            break
+
+    out, sans_horaire = [], 0
+    for r in lignes:
+        # Sans boutique alimentaire, il n'y a rien à manger : la station n'a
+        # rien à faire dans cet onglet, même ouverte toute la nuit.
+        services = r.get("services_service") or []
+        if "Boutique alimentaire" not in services:
+            continue
+        try:
+            lat, lon = float(r["latitude"]) / 100000.0, float(r["longitude"]) / 100000.0
+        except (KeyError, TypeError, ValueError):
+            continue
+        dept = str(r.get("cp") or "")[:2]
+        if dept not in IDF_DEPTS:
+            continue
+        ville = (r.get("ville") or "").strip().title()
+        item = {
+            "id": "st%s" % r.get("id"),
+            "name": nom_station(r.get("adresse"), ville),
+            "address": " · ".join(x for x in (ville, " ".join(
+                (r.get("adresse") or "").split()).title()) if x),
+            "dept": dept,
+            "lat": round(lat, 5), "lon": round(lon, 5),
+            "t": "station",
+        }
+        ouverts, fermes = horaires_station(r.get("horaires"))
+        if ouverts:
+            item["o"], item["f"] = ouverts, fermes
+            if all(f is not None and f - ouverts[i] >= 23 * 60
+                   for i, f in enumerate(fermes)):
+                item["h24"] = 1
+        else:
+            # Pas d'horaires dans le fichier : on l'écrit sur la fiche plutôt
+            # que de laisser une ligne muette, et on ne la fait PAS passer
+            # pour une 24h/24 — même si, sur une aire d'autoroute, c'est
+            # souvent le cas. Une fiche fausse est pire qu'une fiche vague.
+            item["hours"] = "horaires non publiés"
+            sans_horaire += 1
+        if "Toilettes publiques" in services:
+            item["wc"] = True
+        out.append(item)
+    if sans_horaire:
+        log("    dont %d sans horaires publiés (affichées quand même)" % sans_horaire)
+    return out
+
+
 def fetch_courses_osm(communes):
     """Supérettes, supermarchés et boutiques de stations ouverts la nuit."""
     res = overpass(OVERPASS_COURSES, "courses")
@@ -2765,15 +2908,21 @@ def parse_manger_osm(res, communes, adresses=None, prefixe="mo"):
         if not fermes or not any(f and f > NUIT_DES for f in fermes):
             continue                          # ferme avant 23 h tous les jours
         cat, defaut = categorie(tags)
+        # Les stations ne viennent plus d'OpenStreetMap mais du fichier
+        # officiel des prix : on les écarte ici, y compris si une réponse
+        # gardée en cache ou la graine livrée avec le projet en contient
+        # encore. Sans ce filtre, une panne d'Overpass ramènerait les 554
+        # stations qu'on vient justement de retirer.
+        #
+        # Pourquoi les retirer : dans OpenStreetMap, la station d'un
+        # hypermarché porte le nom de l'enseigne — « Carrefour », « C. C.
+        # Carrefour » — avec amenity=fuel et 24/7. L'écran disait donc
+        # « Carrefour · 24h/24 » alors que ce 24/7 décrit les POMPES, et que
+        # le magasin de Flins ou de Bay 2 est fermé la nuit. Le chauffeur
+        # l'avait vu avant moi.
+        if cat == "station":
+            continue
         nom = (tags.get("name") or tags.get("brand") or defaut).strip()
-        # Dans OpenStreetMap, la station d'un hypermarché porte le nom de
-        # l'enseigne, pas celui de la station : « Carrefour », « Carrefour
-        # city », « C. C. Carrefour », avec amenity=fuel et 24/7. Affiché tel
-        # quel, ça fait croire que le magasin de Flins ou de Bay 2 est ouvert
-        # en pleine nuit — c'est faux, ce sont les pompes. Le chauffeur l'a vu
-        # sur le terrain avant moi. On écrit donc ce que c'est.
-        if cat == "station" and not re.search(r"\b(station|relais)\b", nom, re.I):
-            nom = "Station " + nom
         h24 = 1 if re.sub(r"\s", "", tags.get("opening_hours") or "") == "24/7" else 0
         rue, ville, dept = situer(lat, lon, adresses, communes, tags)
         # Le rectangle Overpass déborde sur l'Oise, l'Eure et l'Eure-et-Loir :
@@ -3004,7 +3153,9 @@ def main():
         manger_nuit = fetch_manger_osm(communes)
         log("  %d fast-foods ouverts la nuit (OpenStreetMap)" % len(manger_nuit))
         courses = fetch_courses_osm(communes)
-        log("  %d supérettes, supermarchés et stations ouverts la nuit" % len(courses))
+        log("  %d supérettes et supermarchés ouverts la nuit" % len(courses))
+        stations = fetch_stations_autoroute()
+        log("  %d aires d'autoroute avec boutique" % len(stations))
         a_la_main = manual_places("manger.csv", "manger")
         log("  %d fiches saisies à la main" % len(a_la_main))
         write(out, "lieux", {
@@ -3013,7 +3164,7 @@ def main():
             "astuces": fetch_astuces(),
             # Les fiches du terrain d'abord : à distance égale, ce qui a été
             # vérifié par un chauffeur passe devant ce qui vient d'une base.
-            "manger": a_la_main + manger_nuit + courses,
+            "manger": a_la_main + manger_nuit + courses + stations,
         })
 
     log("terminé.")

@@ -168,10 +168,30 @@
           ? '<span class="dist">' + VTC.fmtDist(it._d) +
             '<span class="dist__unit">d\'ici</span></span>'
           : '') +
+        /* L'étoile n'existe que là où elle sert : on garde en favori un
+           endroit où manger, pas une sanisette.                          */
+        (tab === 'manger' ? VTC.etoile(it.id) : '') +
         VTC.navButtons(it.lat, it.lon) +
       '</div>' +
     '</div>';
   }
+
+  /* Un seul écouteur pour toutes les étoiles, posé une fois sur le conteneur :
+     la liste est réécrite à chaque filtre, et rattacher douze écouteurs à
+     chaque fois finit toujours par en oublier un. On ne redessine que
+     l'étoile touchée — sauf dans la liste des favoris, où retirer une ligne
+     doit la faire disparaître.                                            */
+  document.getElementById('body').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-fav]');
+    if (!b) return;
+    e.preventDefault();
+    var on = VTC.basculeFavori(b.getAttribute('data-fav'));
+    if (famille === 'fav') { paint(cache[TABS[tab].file]); return; }
+    b.className = 'star' + (on ? ' star--on' : '');
+    b.textContent = on ? '★' : '☆';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.setAttribute('title', on ? 'Retirer des favoris' : 'Garder en favori');
+  });
 
   function show() {
     options();
@@ -294,7 +314,13 @@
         ? VTC.chercheManger(list, quoi)
         : list.filter(function (it) { return VTC.inManger(it, famille); });
 
-      list = tout.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
+      /* Les favoris échappent au filtre « encore ouvert » : c'est une liste
+         qu'on a constituée soi-même, on veut la voir en entier, avec les
+         horaires de chacun. Partout ailleurs, on ne montre que ce qui est
+         ouvert — sinon l'onglet ne sert plus à rien à deux heures du matin. */
+      list = famille === 'fav' && !quoi
+        ? tout
+        : tout.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
 
       /* Chercher « mac do » à cinq heures du matin et tomber sur un écran
          vide est pire que la vérité : on montre alors les mêmes adresses,
@@ -306,7 +332,8 @@
        côté. Sans position, la liste n'est pas triée par distance — on en
        montre alors davantage, faute de mieux. En recherche, on en montre dix :
        on cherche une enseigne précise, pas ce qui est autour.            */
-    var combien = quoi ? 10 : (pos ? 5 : 12);
+    var combien = (tab === 'manger' && famille === 'fav') ? 50
+      : quoi ? 10 : (pos ? 5 : 12);
     var items = withDist(list).slice(0, combien);
 
     if (!items.length) {
@@ -316,11 +343,16 @@
           '<p>Essaie le nom de l\'enseigne (<b>mac do</b>, <b>kfc</b>), ' +
           'le genre (<b>grec</b>, <b>pizza</b>, <b>station</b>) ou une ' +
           'commune.</p></div>'
+        : tab === 'manger' && famille === 'fav'
+          ? '<div class="empty"><span class="empty__ico">☆</span>' +
+            '<p class="empty__title">Pas encore de favori</p>' +
+            '<p>Touche l\'étoile sur une ligne pour garder une adresse ici. ' +
+            'Elle reste sur ton téléphone.</p></div>'
         : tab === 'manger' && famille !== 'all'
           ? '<div class="empty"><span class="empty__ico">🍔</span>' +
             '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
-            '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Station</b>, ' +
-            'qui ferme rarement.</p></div>'
+            '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Grec · ' +
+            'Sandwich</b>, qui ferme tard.</p></div>'
           : '<div class="empty"><span class="empty__ico">🗒</span>' +
             '<p class="empty__title">Rien à afficher ici</p>' +
             '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
@@ -376,12 +408,12 @@
        est écrite sur chaque ligne, personne n'a à deviner.               */
     if (tab === 'manger')  html += '<p class="note">Ce qui est ouvert ' +
       '<b>cette nuit</b> — ou sur le point de l\'être, l\'heure est sur ' +
-      'chaque ligne. Fast-foods, grecs et sandwicheries, mais aussi ' +
-      'supérettes et boutiques de stations, souvent les seules ouvertes à ' +
-      'quatre heures du matin. Pour une <b>station</b>, « 24h/24 » décrit le ' +
-      'plus souvent les <b>pompes</b> : la boutique, elle, peut être fermée. ' +
-      'Horaires OpenStreetMap, renseignés par des contributeurs : vérifie ' +
-      'avant de faire dix kilomètres.</p>';
+      'chaque ligne. Fast-foods, grecs et sandwicheries, supérettes, et les ' +
+      '<b>aires d\'autoroute</b> qui ont une boutique : celles-ci viennent du ' +
+      'fichier officiel des prix des carburants, et l\'horaire affiché est ' +
+      'celui de la <b>boutique</b>, pas des pompes. Le reste vient ' +
+      'd\'OpenStreetMap, renseigné par des contributeurs : vérifie avant de ' +
+      'faire dix kilomètres.</p>';
     if (tab === 'wc')      html += '<p class="note">' +
       (pos ? 'Les 5 plus proches de toi. ' : 'Les 12 premières, faute de position. ') +
       'Dans Paris : sanisettes de la Ville. En banlieue : OpenStreetMap, ' +

@@ -619,6 +619,25 @@ a { color: inherit; text-decoration: none; }
 
 .search-wrap { padding: 0 var(--pad) 10px; }
 
+/* ---------- L'étoile des favoris ----------------------------------------
+   Posée à gauche du bouton GPS, à la même hauteur. Grise tant qu'elle est
+   vide : un écran de douze lignes jaunes ne désignerait plus rien. */
+.star {
+  flex: none;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-mute);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.star--on { color: #F2C14E; }
+.star:focus-visible { outline: 1px solid var(--text-dim); outline-offset: 2px; }
+
 </style>
 <style>
   /* Filet de sécurité si le CDN ne répond pas : on reste lisible et sombre. */
@@ -1165,15 +1184,57 @@ var VTC = (function () {
      des fiches saisies à la main.                                          */
   var MANGER = [
     { code: 'all',      label: 'Tout' },
+    { code: 'fav',      label: '★ Favoris' },
     { code: 'chaine',   label: 'Chaînes' },
     { code: 'sandwich', label: 'Grec · Sandwich' },
     { code: 'pizza',    label: 'Pizza' },
     { code: 'super',    label: 'Supérette' },
-    { code: 'station',  label: 'Station' }
+    { code: 'station',  label: 'Autoroute' }
   ];
+
+  /* ---- Les favoris ------------------------------------------------------
+     Une étoile par ligne, une liste gardée SUR LE TÉLÉPHONE et nulle part
+     ailleurs : rien n'est envoyé, rien n'est partagé, et l'app n'a pas de
+     compte. Même logique que les échéances et le choix du GPS.
+
+     On ne garde que des identifiants, pas des fiches : le jour où un
+     fast-food change d'horaires dans OpenStreetMap, le favori suit. Et si
+     une fiche disparaît de la base, son identifiant reste dans la liste sans
+     rien casser — il ne correspond simplement plus à rien.               */
+  var FAV_KEY = 'vtc_favoris';
+
+  function favoris() {
+    try {
+      var v = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
+      return Object.prototype.toString.call(v) === '[object Array]' ? v : [];
+    } catch (e) { return []; }
+  }
+
+  function estFavori(id) {
+    return favoris().indexOf(String(id)) !== -1;
+  }
+
+  function basculeFavori(id) {
+    id = String(id);
+    var l = favoris(), i = l.indexOf(id);
+    if (i === -1) l.push(id); else l.splice(i, 1);
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(l)); } catch (e) {}
+    return i === -1;                     // vrai si on vient de l'ajouter
+  }
+
+  /* L'étoile. Un bouton, pas un lien : il ne doit jamais ouvrir le GPS par
+     erreur, et il porte son état pour les lecteurs d'écran.              */
+  function etoile(id) {
+    var on = estFavori(id);
+    return '<button class="star' + (on ? ' star--on' : '') + '" type="button" ' +
+      'data-fav="' + esc(String(id)) + '" aria-pressed="' + (on ? 'true' : 'false') +
+      '" title="' + (on ? 'Retirer des favoris' : 'Garder en favori') + '">' +
+      (on ? '★' : '☆') + '</button>';
+  }
 
   function inManger(it, code) {
     if (!code || code === 'all') return true;
+    if (code === 'fav') return estFavori(it.id);
     return (it.t || 'autre') === code;
   }
 
@@ -1204,7 +1265,8 @@ var VTC = (function () {
     superette: '@super', supermarche: '@super', supermarches: '@super',
     epicerie: '@super', courses: '@super', alimentation: '@super',
     station: '@station', stations: '@station', essence: '@station',
-    carburant: '@station', pompe: '@station',
+    carburant: '@station', pompe: '@station', autoroute: '@station',
+    autoroutes: '@station', aire: '@station', aires: '@station',
     chaine: '@chaine', chaines: '@chaine', fastfood: '@chaine'
   };
 
@@ -1564,6 +1626,8 @@ var VTC = (function () {
     meteoNow: meteoNow, meteoHtml: meteoHtml,
     mangerEtat: mangerEtat, MANGER: MANGER, inManger: inManger,
     chercheManger: chercheManger, sansAccent: sansAccent,
+    favoris: favoris, estFavori: estFavori, basculeFavori: basculeFavori,
+    etoile: etoile,
     ECHEANCES: ECHEANCES, echeances: echeances,
     setEcheance: setEcheance, echeanceUrgente: echeanceUrgente,
     joursAvant: joursAvant,
