@@ -87,12 +87,39 @@ html, body {
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   text-size-adjust: 100%;
-  overscroll-behavior-y: contain;
+  /* « none » et pas « contain » : contain empêche seulement le défilement de
+     se propager au parent, none supprime en plus le rebond élastique. Sur le
+     brief, qui tient sur un écran, il n'y a plus rien à tirer vers le bas. */
+  overscroll-behavior-y: none;
 }
+
+html { min-height: 100%; }
 
 body {
   padding-top: var(--safe-top);
   padding-bottom: calc(var(--safe-bottom) + 24px);
+  /* LE BRIEF NE FAIT QUE 544 px SUR UN ÉCRAN DE 812. C'est voulu — il tient
+     sur un écran, c'est tout son intérêt — mais les 268 px restants
+     appartenaient à la page qui nous accueille, et GoodBarber les peint en
+     blanc. D'où la bande claire en bas, que le chauffeur a vue sur le brief
+     et nulle part ailleurs : les trois autres onglets dépassent l'écran.
+     dvh plutôt que vh : sur mobile, vh compte la barre d'adresse même quand
+     elle est masquée, ce qui ajoute une bande dans l'autre sens. */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Ceinture et bretelles : une couche de fond fixée au viewport, posée
+   derrière tout le reste. Elle ne dépend d'aucun conteneur — si la section
+   est injectée dans une page qui a son propre fond clair, l'écran reste
+   sombre quand même. Deux lignes qui coûtent zéro et rattrapent ce qu'on ne
+   peut pas inspecter de l'extérieur. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: -1;
 }
 
 a { color: inherit; text-decoration: none; }

@@ -326,6 +326,31 @@ vraiment d'un quart d'heure à l'autre, ce sont **les retards de trains**. La
 météo est horaire, les fermetures et les événements sont publiés pour la
 journée.
 
+### La bande blanche sous le brief
+
+Signalé par le chauffeur : en bas du brief, une bande blanche apparaissait
+quand on tirait l'écran vers le haut, et elle ne se remettait pas. Sur les
+trois autres onglets, rien.
+
+Mesuré sur un écran de 812 px : **le brief ne fait que 544 px de haut**. C'est
+voulu — il tient sur un écran, c'est tout son intérêt — mais les 268 px
+restants n'appartiennent à personne de notre côté, et la page qui nous
+accueille les peint en blanc. Les trois autres onglets dépassent l'écran : ils
+n'ont jamais montré le problème.
+
+Trois lignes de CSS, et aucune n'est un bricolage :
+
+| | |
+|---|---|
+| `min-height: 100dvh` sur `body` | le contenu occupe l'écran entier, il n'y a plus de « en dessous ». `dvh` et pas `vh` : sur mobile, `vh` compte la barre d'adresse même masquée |
+| `overscroll-behavior-y: none` | supprime le rebond élastique. `contain`, qui était là, empêche seulement la propagation au parent |
+| `body::before` fixé au viewport | une couche de fond derrière tout le contenu, indépendante du conteneur qui nous héberge — on ne peut pas inspecter la page de GoodBarber depuis ici |
+
+**Le brief ne défile plus quand il tient sur un écran, et défile quand il le
+faut** : carte « Attention » dépliée, il passe à 1 622 px et le défilement
+revient tout seul. Bloquer le défilement pour de bon aurait rendu les
+dix-sept fermetures inaccessibles sur un petit téléphone.
+
 ## 5 bis. Le système de design
 
 L'habillage de départ — fond bleu nuit, ambre partout, cartes très arrondies,
