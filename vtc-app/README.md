@@ -129,6 +129,34 @@ Ils sont bloquants : inutile d'avancer sur le contenu avant de les avoir passés
 3. **Géolocalisation** — l'onglet 3 doit demander ta position puis afficher une
    distance. Sinon la liste fonctionne quand même, mais sans tri par distance.
 
+### Pourquoi la section « Sur la route » ne contient plus une ligne de code
+
+Les sections sont **collées** dans GoodBarber : corriger un bug dedans demande
+un copier-coller, parfois une republication. En une journée d'allers-retours
+sur cet onglet — recherche, familles, favoris, stations — le chauffeur a
+recollé **cinq fois** la même section. C'est une erreur d'architecture, pas de
+méthode.
+
+Toute la logique de l'onglet vit donc maintenant dans `app.js`, sur l'adresse
+publique, dans une fonction `VTC.route()`. La section est tombée de **20 Ko à
+1,7 Ko** et se résume à :
+
+```html
+<div id="surlaroute"></div>
+<script src="…/app.js"></script>
+<script>VTC.route('surlaroute');</script>
+```
+
+Même la sous-barre (Toilettes, Manger, Trafic, Astuces) est construite dans
+`app.js` : ajouter une cinquième sous-section ne demandera plus rien à
+personne. Désormais, corriger un filtre ou une formulation dans cet onglet, ce
+sera un envoi de fichier — visible au prochain chargement de l'app, sans rien
+recoller.
+
+Les trois autres sections gardent leur logique en propre : elles sont courtes,
+stables, et chacune a son écran bien à elle. Le jour où l'une d'elles
+recommence à bouger toutes les heures, elle suivra le même chemin.
+
 ### Les quatre sections prêtes à coller
 
     python3 scripts/make_goodbarber.py

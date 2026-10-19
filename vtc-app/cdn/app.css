@@ -618,3 +618,9 @@ a { color: inherit; text-decoration: none; }
 }
 .star--on { color: #F2C14E; }
 .star:focus-visible { outline: 1px solid var(--text-dim); outline-offset: 2px; }
+
+/* Fiches de lieux compactes dans « Sur la route » : on en voit plus d'un coup
+   d'œil, tout en gardant des cibles tactiles confortables au pouce. Cette
+   règle vivait dans la section ; elle est ici pour que la section n'ait plus
+   jamais besoin d'être recollée. */
+#surlaroute .row { padding: 12px 0; }

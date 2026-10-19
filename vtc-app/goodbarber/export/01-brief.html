@@ -638,6 +638,12 @@ a { color: inherit; text-decoration: none; }
 .star--on { color: #F2C14E; }
 .star:focus-visible { outline: 1px solid var(--text-dim); outline-offset: 2px; }
 
+/* Fiches de lieux compactes dans « Sur la route » : on en voit plus d'un coup
+   d'œil, tout en gardant des cibles tactiles confortables au pouce. Cette
+   règle vivait dans la section ; elle est ici pour que la section n'ait plus
+   jamais besoin d'être recollée. */
+#surlaroute .row { padding: 12px 0; }
+
 </style>
 <style>
   /* Filet de sécurité si le CDN ne répond pas : on reste lisible et sombre. */
@@ -1609,6 +1615,432 @@ var VTC = (function () {
     });
   }
 
+
+  /* ======================================================================
+     L'ONGLET « SUR LA ROUTE », EN ENTIER
+     ----------------------------------------------------------------------
+     Ce bloc vivait dans la section GoodBarber. Il en sort pour une raison
+     très concrète : la section est COLLÉE dans l'application, donc chaque
+     correction demandait un copier-coller et une republication. En cinq
+     itérations sur cet onglet — recherche, familles, favoris, stations —
+     le chauffeur a recollé cinq fois la même section. Ici, sur le CDN, une
+     correction est en ligne au prochain chargement.
+
+     Il ne reste dans GoodBarber qu'un conteneur vide et un appel. Même la
+     sous-barre est construite ici : ajouter une cinquième sous-section ne
+     demandera plus rien à personne.
+     ====================================================================== */
+  var SOUS = [
+    { code: 'wc',      label: 'Toilettes', ico: '🚽', file: 'lieux', key: 'toilettes' },
+    { code: 'manger',  label: 'Manger',    ico: '🍔', file: 'lieux', key: 'manger' },
+    { code: 'trafic',  label: 'Trafic',    ico: '🚧', file: 'brief', key: 'closures' },
+    { code: 'astuces', label: 'Astuces',   ico: '💡', file: 'lieux', key: 'astuces' }
+  ];
+
+  var CHIPS_SOUS = {
+    wc: [{ code: 'all', label: 'Toutes' },
+         { code: 'fav', label: '★ Favoris' },
+         { code: '24',  label: 'Ouvert 24h' }],
+    astuces: [{ code: 'all', label: 'Toutes' },
+              { code: 'fav', label: '★ Favoris' }]
+  };
+
+  function route(hostId) {
+    var hote = document.getElementById(hostId || 'surlaroute');
+    if (!hote) return;
+
+    hote.innerHTML =
+      '<div class="subnav" id="subnav">' +
+        SOUS.map(function (s, i) {
+          return '<button class="subnav__item" type="button" data-tab="' + s.code +
+            '" aria-pressed="' + (i === 0 ? 'true' : 'false') + '">' +
+            '<span class="subnav__ico">' + s.ico + '</span>' + esc(s.label) + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="filters" id="opts"></div>' +
+      '<div id="recherche"></div>' +
+      '<div id="body"><div class="stack"><div class="skeleton"></div></div></div>';
+
+    var TABS = {};
+    SOUS.forEach(function (s) { TABS[s.code] = s; });
+
+    /* Le brief renvoie ici d'un clic sur sa carte « Attention » : on ouvre
+       alors directement Trafic, au lieu de laisser le chauffeur chercher la
+       sous-section au volant. #trafic, #wc, #manger, #astuces.             */
+    var depart = String(window.location.hash || '').replace('#', '');
+    var tab    = TABS[depart] ? depart : 'wc';
+    var pos    = null;          // position du chauffeur, si accordée
+    var geoErr = null;
+    var cache  = {};            // fichiers déjà téléchargés
+    /* Une pastille par sous-section, mémorisée le temps de la session. Les
+       trois listes ont la leur, parce que « Favoris » existe partout mais
+       que « Ouvert 24h » ne veut rien dire pour une astuce.               */
+    var filtre = { wc: 'all', manger: 'all', astuces: 'all' };
+    var quoi   = '';            // ce qui est tapé dans la recherche
+    var body   = hote.querySelector('#body');
+    var subnav = hote.querySelector('#subnav');
+
+    function vue() { return filtre[tab] || 'all'; }
+    function enFavoris() { return vue() === 'fav'; }
+
+    function marquerOnglet() {
+      Array.prototype.forEach.call(subnav.querySelectorAll('.subnav__item'), function (i) {
+        i.setAttribute('aria-pressed',
+          i.getAttribute('data-tab') === tab ? 'true' : 'false');
+      });
+    }
+    marquerOnglet();
+
+    subnav.addEventListener('click', function (e) {
+      var b = e.target.closest('.subnav__item');
+      if (!b) return;
+      tab = b.getAttribute('data-tab');
+      quoi = '';               // on ne traîne pas sa recherche d'un onglet à l'autre
+      marquerOnglet();
+      show();
+    });
+
+    /* On ne demande la position qu'une fois, au premier affichage : une
+       autorisation refusée ne doit pas redemander à chaque onglet.        */
+    locate(function (err, p) {
+      geoErr = err; pos = p;
+      show();
+    });
+
+    function withDist(items) {
+      if (!pos) return items.slice();
+      return items.map(function (it) {
+        return Object.assign({}, it, { _d: distKm(pos.lat, pos.lon, it.lat, it.lon) });
+      }).sort(function (a, b) { return a._d - b._d; });
+    }
+
+    function geoBanner() {
+      if (pos) return '';
+      if (geoErr === 'denied') {
+        return '<p class="note">Position refusée : la liste n\'est pas triée par ' +
+               'distance. Tu peux l\'autoriser dans les réglages de ton téléphone.</p>';
+      }
+      return '<p class="note">Position indisponible : liste non triée par distance.</p>';
+    }
+
+    /* Le choix n'est pas mémorisé d'une ouverture à l'autre : on a faim de
+       choses différentes selon les soirs, et retrouver « Pizza » coché trois
+       jours plus tard n'aide personne.                                    */
+    function options() {
+      var host = hote.querySelector('#opts');
+      var liste = tab === 'manger' ? MANGER : CHIPS_SOUS[tab];
+      if (!liste) { host.innerHTML = ''; return; }
+      renderChips(host, liste, vue(), function (c) {
+        filtre[tab] = c;
+        show();
+      });
+    }
+
+    /* Le champ de recherche n'est PAS reconstruit à chaque frappe : on le
+       pose une fois et on ne touche plus qu'à la liste. Le refaire ferait
+       perdre le curseur et le clavier au premier caractère — le genre de
+       détail qui rend un champ inutilisable sur téléphone.                */
+    function recherche() {
+      var host = hote.querySelector('#recherche');
+      if (tab !== 'manger') { host.innerHTML = ''; return; }
+      if (host.firstChild) return;
+
+      host.innerHTML = '<div class="search-wrap"><input class="search" id="q" ' +
+        'type="search" autocomplete="off" autocorrect="off" spellcheck="false" ' +
+        'placeholder="Chercher : mac do, grec, Montreuil…"></div>';
+
+      var champ = host.querySelector('#q');
+      var minuteur = null;
+      champ.addEventListener('input', function () {
+        /* Un sixième de seconde d'attente : assez pour ne pas retrier mille
+           six cents lignes à chaque lettre, trop peu pour qu'on le remarque. */
+        clearTimeout(minuteur);
+        minuteur = setTimeout(function () {
+          quoi = champ.value;
+          paint(cache[TABS[tab].file]);
+        }, 160);
+      });
+    }
+
+    /* Le bouton du GPS choisi dans Réglages se range à droite, au niveau du
+       nom et de l'adresse : trois lignes deviennent deux, et l'écran tient
+       huit lieux au lieu de quatre.                                       */
+    function place(it, sub) {
+      return '<div class="row">' +
+        '<div class="row__body">' +
+          '<p class="row__title">' + esc(it.name) + '</p>' +
+          '<p class="row__sub">' + sub + '</p>' +
+        '</div>' +
+        '<div class="row__right">' +
+          (it._d !== undefined
+            ? '<span class="dist">' + fmtDist(it._d) +
+              '<span class="dist__unit">d\'ici</span></span>'
+            : '') +
+          etoile(it.id) +
+          navButtons(it.lat, it.lon) +
+        '</div>' +
+      '</div>';
+    }
+
+    /* Un seul écouteur pour toutes les étoiles, posé une fois sur le
+       conteneur : la liste est réécrite à chaque filtre, et rattacher douze
+       écouteurs à chaque fois finit toujours par en oublier un.           */
+    body.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-fav]');
+      if (!b) return;
+      e.preventDefault();
+      var on = basculeFavori(b.getAttribute('data-fav'));
+      /* Dans la liste des favoris, retirer une ligne doit la faire
+         disparaître ; ailleurs, on ne redessine que l'étoile touchée.    */
+      if (enFavoris()) { paint(cache[TABS[tab].file]); return; }
+      b.className = 'star' + (on ? ' star--on' : '');
+      b.textContent = on ? '★' : '☆';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.setAttribute('title', on ? 'Retirer des favoris' : 'Garder en favori');
+    });
+
+    function show() {
+      options();
+      recherche();
+      var cfg = TABS[tab];
+
+      if (cache[cfg.file]) { paint(cache[cfg.file]); return; }
+
+      body.innerHTML = '<div class="stack"><div class="skeleton"></div>' +
+        '<div class="skeleton"></div></div>';
+      load(cfg.file, function (err, data) {
+        if (err || !data) {
+          body.innerHTML = '<div class="empty"><span class="empty__ico">📡</span>' +
+            '<p class="empty__title">Pas de connexion</p>' +
+            '<p>Ces données arrivent dès que le réseau revient.</p></div>';
+          return;
+        }
+        cache[cfg.file] = data;
+        paint(data);
+      });
+    }
+
+    function paint(data) {
+      if (!data) return;
+      var cfg  = TABS[tab];
+      var list = data[cfg.key] || [];
+      var html = '';
+
+      if (tab === 'trafic') {
+        /* UNE SEULE NUIT, celle qu'on est en train de faire. La bascule se
+           fait à 6 h, à la première ouverture, sans rien attendre du serveur.
+
+           Et seulement les fermetures NOCTURNES : celles qui durent —
+           bretelle coupée 24h/24, chantier déjà en place — ne sont plus
+           listées, Waze et Google Maps les connaissent et dévient tout
+           seuls. Ce qu'un GPS ne sait pas dire, c'est qu'à 21 h ce soir
+           l'A86 ferme.
+
+           Conséquence assumée : du vendredi au dimanche, la DiRIF ne ferme
+           presque rien de 21 h à 6 h — tout ce qu'elle publie ces soirs-là
+           est du 24h/24. L'écran dira donc souvent « rien de fermé cette
+           nuit » le week-end. C'est juste, et c'est une bonne nouvelle.   */
+        var nuit = currentNight();
+        var clos = nightClosures(list, nuit);
+
+        if (!clos.length) {
+          body.innerHTML = '<div class="empty"><span class="empty__ico">✅</span>' +
+            '<p class="empty__title">Rien de fermé cette nuit</p>' +
+            '<p>' + esc(nightTitle(nuit)) + '. Le réseau est libre, ton GPS ' +
+            'suffit.</p></div>';
+          return;
+        }
+
+        /* Deux lignes, pas trois : l'axe et l'horaire ensemble, le détail en
+           dessous. Le département n'apporte rien ici — l'axe le dit déjà. */
+        html += '<p class="note" style="margin:0 0 10px">' + esc(nightTitle(nuit)) +
+                '</p><div class="stack"><div class="card">' +
+                clos.map(function (c) {
+                  return '<div class="row"><div class="row__body">' +
+                    '<p class="row__title">' + esc(c.title) +
+                      '<span class="tag tag--alert">' + esc(closureBadge(c)) +
+                      '</span></p>' +
+                    '<p class="row__sub">' + esc(c.detail || '') + '</p>' +
+                  '</div></div>';
+                }).join('') + '</div></div>';
+        body.innerHTML = html;
+        return;
+      }
+
+      if (tab === 'astuces') {
+        /* Le carnet du chauffeur. Une astuce n'a pas forcément de lieu :
+           celles qui en ont un se classent par distance et portent leur
+           bouton GPS, les autres se lisent, c'est tout.                   */
+        if (enFavoris()) {
+          list = list.filter(function (a) { return estFavori(a.id); });
+        }
+        var avec = withDist(list.filter(function (a) { return a.lat != null; }));
+        var sans = list.filter(function (a) { return a.lat == null; });
+        if (!avec.length && !sans.length) {
+          body.innerHTML = enFavoris()
+            ? '<div class="empty"><span class="empty__ico">☆</span>' +
+              '<p class="empty__title">Pas encore de favori</p>' +
+              '<p>Touche l\'étoile sur une astuce pour la garder ici.</p></div>'
+            : '<div class="empty"><span class="empty__ico">💡</span>' +
+              '<p class="empty__title">Pas encore d\'astuce</p>' +
+              '<p>Ce carnet se remplit au fil du terrain : lieux où patienter, ' +
+              'heures creuses, entrées à éviter.</p></div>';
+          return;
+        }
+        html += geoBanner() + '<div class="stack"><div class="card">';
+        avec.concat(sans).forEach(function (a) {
+          html += '<div class="row">' +
+            '<div class="row__body">' +
+              '<p class="row__title">' + esc(a.name) + deptTag(a.dept) + '</p>' +
+              '<p class="row__sub">' + esc(a.note || '') + '</p>' +
+            '</div>' +
+            /* Une astuce sans lieu garde quand même son étoile : « éviter la
+               porte de Bagnolet après 18 h » se range aussi bien qu'une
+               adresse.                                                    */
+            '<div class="row__right">' +
+              (a._d !== undefined
+                ? '<span class="dist">' + fmtDist(a._d) +
+                  '<span class="dist__unit">d\'ici</span></span>'
+                : '') +
+              etoile(a.id) +
+              (a.lat != null ? navButtons(a.lat, a.lon) : '') +
+            '</div>' +
+          '</div>';
+        });
+        html += '</div></div><p class="note">Relevé sur le terrain, pas dans ' +
+                'une base de données.</p>';
+        body.innerHTML = html;
+        return;
+      }
+
+      if (tab === 'wc') {
+        if (vue() === '24') list = list.filter(function (it) { return it.h24; });
+        if (enFavoris())    list = list.filter(function (it) { return estFavori(it.id); });
+      }
+
+      var ferme = false;    // vrai quand on montre des adresses fermées, faute de mieux
+      if (tab === 'manger') {
+        /* Quand on cherche, on cherche PARTOUT : la recherche l'emporte sur
+           la pastille. Taper « mac do » en ayant « Pizza » coché ne doit pas
+           donner une liste vide pour une raison invisible à l'écran.      */
+        var tout = quoi
+          ? chercheManger(list, quoi)
+          : list.filter(function (it) { return inManger(it, vue()); });
+
+        /* Les favoris échappent au filtre « encore ouvert » : c'est une
+           liste qu'on a constituée soi-même, on veut la voir en entier.
+           Partout ailleurs, on ne montre que ce qui est ouvert — sinon
+           l'onglet ne sert plus à rien à deux heures du matin.            */
+        list = enFavoris() && !quoi
+          ? tout
+          : tout.filter(function (it) { return !it.f || mangerEtat(it); });
+
+        /* Chercher « mac do » à cinq heures du matin et tomber sur un écran
+           vide est pire que la vérité : on montre alors les mêmes adresses,
+           fermées, en le disant.                                          */
+        if (!list.length && quoi && tout.length) { list = tout; ferme = true; }
+      }
+
+      /* Position connue : cinq suffisent, et ce sont vraiment les cinq d'à
+         côté. Sans position, la liste n'est pas triée par distance — on en
+         montre alors davantage, faute de mieux. En recherche, dix : on
+         cherche une enseigne précise, pas ce qui est autour. Et une liste de
+         favoris se montre en entier, c'est la sienne.                     */
+      var combien = enFavoris() ? 50 : quoi ? 10 : (pos ? 5 : 12);
+      var items = withDist(list).slice(0, combien);
+
+      if (!items.length) {
+        body.innerHTML = tab === 'manger' && quoi && !enFavoris()
+          ? '<div class="empty"><span class="empty__ico">🔍</span>' +
+            '<p class="empty__title">Rien trouvé pour « ' + esc(quoi) + ' »</p>' +
+            '<p>Essaie le nom de l\'enseigne (<b>mac do</b>, <b>kfc</b>), le ' +
+            'genre (<b>grec</b>, <b>pizza</b>, <b>station</b>) ou une commune.' +
+            '</p></div>'
+          : enFavoris()
+            ? '<div class="empty"><span class="empty__ico">☆</span>' +
+              '<p class="empty__title">Pas encore de favori</p>' +
+              '<p>Touche l\'étoile sur une ligne pour garder une adresse ici. ' +
+              'Elle reste sur ton téléphone.</p></div>'
+          : tab === 'manger' && vue() !== 'all'
+            ? '<div class="empty"><span class="empty__ico">🍔</span>' +
+              '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
+              '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Grec · ' +
+              'Sandwich</b>, qui ferme tard.</p></div>'
+            : '<div class="empty"><span class="empty__ico">🗒</span>' +
+              '<p class="empty__title">Rien à afficher ici</p>' +
+              '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
+        return;
+      }
+
+      html += geoBanner();
+      if (ferme) {
+        html += '<p class="note" style="margin:0 0 10px">Rien d\'ouvert pour ' +
+                '« ' + esc(quoi) + ' » à cette heure-ci. Voici les plus ' +
+                'proches, <b>fermées</b>.</p>';
+      }
+      html += '<div class="stack"><div class="card">';
+
+      items.forEach(function (it) {
+        var sub = '';
+        if (tab === 'wc') {
+          sub = '<span class="row__what">' + esc(it.address) + '</span>' +
+                (it.h24
+                  ? '<span class="tag tag--ok">24/24h</span> '
+                  : '<span class="tag">' + esc(it.open_label || 'horaires inconnus') +
+                    '</span> ') +
+                (it.pmr ? '<span class="tag">PMR</span> ' : '');
+        } else {
+          var etat = mangerEtat(it);
+          /* Fiche reprise d'une base : l'heure de fermeture de CETTE nuit, et
+             rien d'autre — c'est la seule chose qu'on veut savoir à deux
+             heures du matin. Fiche saisie à la main : ce que Google Maps ne
+             dit pas, parking, toilettes, prix.                            */
+          sub = '<span class="row__what">' + esc(it.address) + '</span>' +
+                (etat
+                  ? (etat.h24
+                      ? '<span class="tag tag--ok">24h/24</span> '
+                      : etat.ouvert
+                        ? '<span class="tag tag--ok">jusqu\'à ' + hhmm(etat.fin) + '</span> '
+                        : '<span class="tag">ouvre à ' + hhmm(etat.debut) + '</span> ')
+                  : (it.hours
+                      ? '<span class="tag">' + esc(it.hours) + '</span> '
+                      : it.f ? '<span class="tag">fermé maintenant</span> ' : '')) +
+                (it.drive ? '<span class="tag">Drive</span> ' : '') +
+                (it.parking ? '<span class="tag tag--ok">Parking</span> ' : '') +
+                (it.wc ? '<span class="tag tag--ok">Toilettes</span> ' : '') +
+                (it.price ? '<span class="tag">' + esc(it.price) + '</span> ' : '');
+        }
+        html += place(it, sub);
+      });
+
+      html += '</div></div>';
+      /* « Ouvert cette nuit », pas « ouvert à la seconde » : une ligne peut
+         dire « ouvre à 17h00 », et c'est voulu — à 16 h, savoir que le grec
+         d'à côté ouvre dans une heure vaut mieux qu'une liste vide.       */
+      if (tab === 'manger') {
+        html += '<p class="note">Ce qui est ouvert <b>cette nuit</b> — ou sur ' +
+          'le point de l\'être, l\'heure est sur chaque ligne. Fast-foods, ' +
+          'grecs et sandwicheries, supérettes, et les <b>aires d\'autoroute</b> ' +
+          'qui ont une boutique : celles-ci viennent du fichier officiel des ' +
+          'prix des carburants, et l\'horaire affiché est celui de la ' +
+          '<b>boutique</b>, pas des pompes. Le reste vient d\'OpenStreetMap, ' +
+          'renseigné par des contributeurs : vérifie avant de faire dix ' +
+          'kilomètres.</p>';
+      }
+      /* La note décrit la liste qu'on a sous les yeux : en favoris, « les 12
+         premières » serait faux, et on sait déjà d'où elles viennent.     */
+      if (tab === 'wc' && !enFavoris()) {
+        html += '<p class="note">' +
+          (pos ? 'Les 5 plus proches de toi. ' : 'Les 12 premières, faute de position. ') +
+          'Dans Paris : sanisettes de la Ville. En banlieue : OpenStreetMap, ' +
+          'alimenté par des contributeurs — les horaires y manquent souvent, ' +
+          'donc « 24h/24 » n\'est affiché que lorsque c\'est écrit.</p>';
+      }
+
+      body.innerHTML = html;
+    }
+  }
+
   return {
     BASE: BASE, DEPTS: DEPTS, KINDS: KINDS,
     period: period, periodEnd: periodEnd, load: load,
@@ -1627,6 +2059,7 @@ var VTC = (function () {
     mangerEtat: mangerEtat, MANGER: MANGER, inManger: inManger,
     chercheManger: chercheManger, sansAccent: sansAccent,
     favoris: favoris, estFavori: estFavori, basculeFavori: basculeFavori,
+    route: route,
     etoile: etoile,
     ECHEANCES: ECHEANCES, echeances: echeances,
     setEcheance: setEcheance, echeanceUrgente: echeanceUrgente,
