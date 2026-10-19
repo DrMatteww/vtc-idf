@@ -26,6 +26,20 @@
 </div>
 
 <script src="../cdn/app.js"></script>
-<script>VTC.route('surlaroute');</script>
+<script>
+  /* Trois cas où VTC.route n'existe pas : le réseau est coupé, l'adresse
+     publique ne répond pas, ou cette section a été collée avant que le
+     nouvel app.js ne soit publié. Dans les trois, on le DIT au lieu de
+     laisser un écran gris qui ne charge jamais. */
+  if (window.VTC && VTC.route) {
+    VTC.route('surlaroute');
+  } else {
+    document.getElementById('surlaroute').innerHTML =
+      '<div class="empty"><span class="empty__ico">\uD83D\uDCE1</span>' +
+      '<p class="empty__title">Chargement impossible</p>' +
+      '<p>Reviens dès que tu as du réseau. Si ça dure, c\'est que la ' +
+      'mise à jour n\'est pas encore en ligne.</p></div>';
+  }
+</script>
 
 </body></html>
