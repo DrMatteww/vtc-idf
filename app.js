@@ -380,10 +380,30 @@ var VTC = (function () {
 
   var DU_JOUR = { flight: 1, train: 1 };   // ne dépassent pas la journée en cours
 
+  /* ---- L'horizon : aujourd'hui et demain, pas plus ----------------------
+     La billetterie publie jusqu'à dix jours à l'avance. Affichés tels quels,
+     les concerts de la semaine suivante poussaient la soirée en cours hors de
+     l'écran et faisaient une liste qu'on ne lit plus — pour une information
+     sans usage au volant : personne ne se place pour un match dans six jours.
+     On coupe donc à la fin de la journée de DEMAIN, la journée étant celle du
+     chauffeur : elle finit à 6 h du matin, pas à minuit. À 2 h, « aujourd'hui »
+     est donc encore la nuit qu'on est en train de faire.                   */
+  var HORIZON_J = 2;
+
+  function horizonEnd(now) {
+    var d = new Date(now || Date.now());
+    if (d.getHours() < DAY_TO_H) d.setDate(d.getDate() - 1);   // encore la veille
+    var f = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_TO_H, 0, 0, 0);
+    f.setDate(f.getDate() + HORIZON_J);
+    return f;
+  }
+
   function live(items, now) {
-    var t = now ? +now : Date.now(), fin = dayEnd(t).getTime();
+    var t = now ? +now : Date.now();
+    var fin = dayEnd(t).getTime(), hz = horizonEnd(t).getTime();
     return (items || []).filter(function (it) {
       if (endOf(it) <= t) return false;
+      if (new Date(it.start).getTime() >= hz) return false;
       if (DU_JOUR[it.kind] && new Date(it.start).getTime() >= fin) return false;
       return true;
     });
@@ -460,17 +480,21 @@ var VTC = (function () {
     }).sort(function (a, b) { return new Date(a.from) - new Date(b.from); });
   }
 
-  function standingClosures(list, now) {
-    var t = now ? +now : Date.now();
-    return (list || []).filter(function (c) {
-      if (!isStanding(c)) return false;
-      if (new Date(c.to).getTime() <= t) return false;
-      return new Date(c.from).getTime() <= t + 24 * 3600 * 1000;
-    }).sort(function (a, b) {
-      var w = { high: 0, medium: 1, low: 2 };
-      return (w[a.severity] === undefined ? 3 : w[a.severity]) -
-             (w[b.severity] === undefined ? 3 : w[b.severity]);
-    });
+  /* Les fermetures permanentes ne sont plus affichées nulle part — décision
+     du terrain : une bretelle coupée 24h/24, un chantier déjà en place, Waze
+     et Google Maps les connaissent et dévient tout seuls. Ce qu'un GPS ne
+     sait pas dire, c'est qu'à 21 h CE SOIR l'A86 ferme : c'est cela, et cela
+     seulement, que l'app annonce.
+
+     La fonction reste, et renvoie une liste vide, pour deux raisons : les
+     écrans déjà publiés dans GoodBarber l'appellent, et le jour où l'on
+     changerait d'avis, le filtre tient en six lignes. isStanding, lui, sert
+     toujours : c'est lui qui écarte ces fermetures de la nuit en cours.
+     Conséquence assumée : le week-end, la DiRIF ne publiant presque que du
+     24h/24, le brief n'a plus de carte rouge et Trafic affiche « rien de
+     fermé cette nuit ». C'est la vérité du terrain, pas un écran cassé.   */
+  function standingClosures() {
+    return [];
   }
 
   /* L'étiquette rouge. Une fermeture permanente n'a pas de date de fin —
@@ -793,7 +817,7 @@ var VTC = (function () {
     FILTERS: FILTERS, inFilter: inFilter,
     slotLabel: slotLabel, subLine: subLine,
     score: score, upcoming: upcoming, activeClosures: activeClosures,
-    live: live, endOf: endOf, dayEnd: dayEnd, go: go,
+    live: live, endOf: endOf, dayEnd: dayEnd, horizonEnd: horizonEnd, go: go,
     navUrl: navUrl, navPref: navPref, setNavPref: setNavPref, NAVS: NAVS,
     geoKnown: geoKnown,
     timeCell: timeCell, isSortie: isSortie, ico: ico,
