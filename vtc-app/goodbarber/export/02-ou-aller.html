@@ -1098,6 +1098,29 @@ var VTC = (function () {
      chaque ligne.                                                          */
   var NIGHT_FROM_H = 21, NIGHT_TO_H = 6;
 
+  /* ---- Les toilettes de parc, et celles qui n'en sont pas ---------------
+     Deux relevés de terrain que la donnée ne porte pas, et qui vont en sens
+     contraire :
+
+     - les 140 sanisettes dont l'horaire dit « Horaires du parc » sont DANS
+       les parcs de la Ville. Les parcs ferment la nuit, donc elles ferment
+       avec eux : les afficher à trois heures du matin, c'est envoyer un
+       chauffeur contre une grille. On les masque pendant la nuit ;
+     - les 219 qui affichent « 06h00 - 22h00 », en revanche, restent
+       affichées : la porte arrière, côté urinoir, reste ouverte la nuit.
+       L'information est partielle — elle ne vaut que pour les hommes — mais
+       elle est juste, et elle est utile à la quasi-totalité des chauffeurs.
+
+     On ne masque donc QUE les parcs, et seulement entre 21 h et 6 h.      */
+  function wcDeParc(it) {
+    return /parc/i.test((it && it.open_label) || '');
+  }
+
+  function dansLaNuit(now) {
+    var h = new Date(now || Date.now()).getHours();
+    return h >= NIGHT_FROM_H || h < NIGHT_TO_H;
+  }
+
   function currentNight(now) {
     var d = new Date(now || Date.now());
     var debut = new Date(d.getFullYear(), d.getMonth(), d.getDate(), NIGHT_FROM_H, 0, 0, 0);
@@ -1901,7 +1924,13 @@ var VTC = (function () {
         return;
       }
 
+      var parcsMasques = 0;
       if (tab === 'wc') {
+        if (dansLaNuit()) {
+          var avant = list.length;
+          list = list.filter(function (it) { return !wcDeParc(it); });
+          parcsMasques = avant - list.length;
+        }
         if (vue() === '24') list = list.filter(function (it) { return it.h24; });
         if (enFavoris())    list = list.filter(function (it) { return estFavori(it.id); });
       }
@@ -2022,7 +2051,14 @@ var VTC = (function () {
           (pos ? 'Les 5 plus proches de toi. ' : 'Les 12 premières, faute de position. ') +
           'Dans Paris : sanisettes de la Ville. En banlieue : OpenStreetMap, ' +
           'alimenté par des contributeurs — les horaires y manquent souvent, ' +
-          'donc « 24h/24 » n\'est affiché que lorsque c\'est écrit.</p>';
+          'donc « 24h/24 » n\'est affiché que lorsque c\'est écrit.' +
+          (parcsMasques
+            ? ' <b>' + parcsMasques + ' toilettes de parc</b> sont masquées à ' +
+              'cette heure-ci : elles sont à l\'intérieur des parcs de la Ville, ' +
+              'fermés la nuit.'
+            : '') +
+          ' Celles qui affichent <b>06h-22h</b> restent dans la liste : relevé ' +
+          'terrain, la porte arrière côté urinoir reste ouverte.</p>';
       }
 
       body.innerHTML = html;

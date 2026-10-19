@@ -1348,6 +1348,29 @@ Un piège trouvé en route : **un miroir peut répondre `200` avec une liste
 vide**. On a failli mettre zéro toilette en cache pour une semaine. Une réponse
 vide n'est pas une réponse : le script passe au miroir suivant.
 
+### Les toilettes de parc, masquées la nuit
+
+Deux relevés de terrain que la donnée ne porte pas, et qui vont en sens
+contraire. Ils viennent du chauffeur, après qu'on ait failli corriger de
+travers :
+
+| Ce que dit la donnée | Ce qui est vrai | Ce que fait l'app |
+|---|---|---|
+| 140 sanisettes : « Horaires du parc » | elles sont **dans** les parcs de la Ville, fermés la nuit | **masquées de 21 h à 6 h** |
+| 219 sanisettes : « 06h00 - 22h00 » | la porte arrière, côté urinoir, **reste ouverte** | **gardées**, horaire affiché tel quel |
+
+La correction naïve — « cacher tout ce qui est fermé », comme pour *Manger* —
+aurait retiré les 219 et gardé les 140 : exactement l'inverse de ce qu'il faut.
+C'est le genre d'erreur qu'aucune donnée ne signale et qu'un chauffeur voit en
+une nuit.
+
+Le repère est l'horaire lui-même (`/parc/i` sur `open_label`), pas le nom : le
+« 16 Av Du Parc Des Princes » est une adresse de rue, pas une toilette de
+square. Le compte masqué est écrit dans la note sous la liste, pour que
+personne ne cherche une sanisette qui a disparu de l'écran. Et comme le filtre
+est dans `app.js`, il a été en ligne sans reconstruire les données ni recoller
+la section — c'est le premier bénéfice concret du déplacement.
+
 ### Les toilettes en banlieue
 
 Les sanisettes de la Ville de Paris s'arrêtent au périphérique, et **aucune
