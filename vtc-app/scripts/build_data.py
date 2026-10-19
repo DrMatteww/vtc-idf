@@ -2575,6 +2575,61 @@ OVERPASS_MANGER = ('[out:json][timeout:240];'
                    '(48.12,1.45,49.24,3.56);'
                    'out center tags;')
 
+# Les courses de nuit : supérettes, supermarchés, et les boutiques de stations
+# service — qui sont, à trois heures du matin, le seul endroit ouvert dans
+# beaucoup de communes. Même filtre que les fast-foods : on ne garde que ce qui
+# vit après 23 h. Mesuré sur l'Île-de-France : 4 549 commerces portent des
+# horaires, 882 passent minuit, dont 661 ouverts 24h/24 — et la moitié sont des
+# stations.
+OVERPASS_COURSES = ('[out:json][timeout:240];'
+                    '(nwr["shop"~"^(supermarket|convenience)$"]["opening_hours"]'
+                    '(48.12,1.45,49.24,3.56);'
+                    ' nwr["amenity"="fuel"]["shop"]["opening_hours"]'
+                    '(48.12,1.45,49.24,3.56););'
+                    'out center tags;')
+
+# ---- Les catégories, et pourquoi celles-là ------------------------------
+# Un chauffeur qui cherche à manger à deux heures du matin ne cherche pas « un
+# restaurant » : il cherche soit du sûr (une chaîne : il sait ce qu'il trouve,
+# il y a un parking et des toilettes), soit du rapide et pas cher (grec,
+# tacos, sandwich), soit de quoi tenir jusqu'au matin (supérette, station).
+# Ces catégories-là se déduisent des étiquettes d'OpenStreetMap ; les autres
+# — « healthy », « poke », « bagel » — n'ont pas de sens à cette heure-là et
+# retombent dans « autre », visible sous « Tout ».
+CHAINES = {
+    "mcdonald's", "mcdonalds", "burger king", "kfc", "quick", "subway",
+    "o'tacos", "otacos", "domino's pizza", "domino's", "pizza hut",
+    "five guys", "big fernand", "class'croute", "pret a manger", "exki",
+    "cojean", "sushi shop", "starbucks", "paul", "brioche dorée",
+    "la croissanterie", "bagelstein", "pomme de pain", "columbus café",
+}
+CUISINE_SANDWICH = {"kebab", "sandwich", "turkish", "french_tacos", "lebanese",
+                    "tacos", "shawarma"}
+CUISINE_ASIAT = {"asian", "chinese", "japanese", "sushi", "thai", "vietnamese",
+                 "korean", "poke"}
+
+
+def categorie(tags):
+    """Catégorie d'un lieu, et nom de repli quand la fiche n'en porte pas."""
+    boutique = (tags.get("shop") or "").lower()
+    if tags.get("amenity") == "fuel" or "gas" in boutique:
+        return "station", "Station"
+    if boutique:
+        return "super", ("Supermarché" if "supermarket" in boutique else "Supérette")
+
+    nom = (tags.get("brand") or tags.get("name") or "").strip().lower()
+    if nom in CHAINES:
+        return "chaine", "Fast-food"
+    cuisines = {c.strip() for c in (tags.get("cuisine") or "").lower().split(";")}
+    if cuisines & CUISINE_SANDWICH:
+        return "sandwich", "Sandwicherie"
+    if "pizza" in cuisines:
+        return "pizza", "Pizzeria"
+    if cuisines & CUISINE_ASIAT:
+        return "asiat", "Restaurant"
+    return "autre", "Fast-food"
+
+
 # On retient un établissement dès qu'il est encore ouvert à 23 h un jour de la
 # semaine. L'application, elle, n'affiche que ceux qui sont ouverts à l'heure
 # qu'il est.
@@ -2648,6 +2703,35 @@ def parse_opening(oh):
     return ouverts, fermes
 
 
+JOURS_FR = [("lun", "Mo"), ("mar", "Tu"), ("mer", "We"), ("jeu", "Th"),
+            ("ven", "Fr"), ("sam", "Sa"), ("dim", "Su")]
+RE_HEURE_FR = re.compile(r"\b(\d{1,2})\s*h\s*(\d{2})?", re.I)
+
+
+def horaires_vers_osm(txt):
+    """« lun-sam 11h-2h ; dim 12h-minuit » → « Mo-Sa 11:00-02:00; Su 12:00-00:00 »
+
+    Personne ne va saisir la syntaxe d'OpenStreetMap à la main. On accepte donc
+    ce qu'on écrit naturellement — « 11h-2h », « 24/24 », « lun-ven 10h30-1h »
+    — et on le traduit avant de le donner à parse_opening, qui est déjà testé
+    sur trois mille fiches. Ce qui n'est pas compris n'est pas deviné : la
+    ligne garde son texte d'origine, affiché tel quel, et le lieu reste
+    visible à toute heure plutôt que de disparaître à tort.
+    """
+    t = (txt or "").strip().lower()
+    if not t:
+        return ""
+    if re.sub(r"[^0-9]", "", t).startswith(("2424", "247")):
+        return "24/7"                 # 24/24, 24h/24, 24h sur 24, 24/7, 7j/7…
+    t = t.replace("minuit", "0h").replace("midi", "12h")
+    t = re.sub(r"\s+(à|a|au)\s+", "-", t)
+    for fr, osm in JOURS_FR:
+        t = re.sub(r"\b%s[a-z]*\b" % fr, osm, t)
+    t = RE_HEURE_FR.sub(lambda m: "%02d:%s" % (int(m.group(1)), m.group(2) or "00"), t)
+    t = re.sub(r"\b(\d):(\d{2})", r"0\1:\2", t)        # 9:30 → 09:30
+    return t.replace(",", ";")
+
+
 def fetch_manger_osm(communes):
     """Fast-foods ouverts la nuit, d'après OpenStreetMap."""
     res = overpass(OVERPASS_MANGER, "manger")
@@ -2656,8 +2740,19 @@ def fetch_manger_osm(communes):
     return parse_manger_osm(res, communes, adresses_osm(res))
 
 
-def parse_manger_osm(res, communes, adresses=None):
-    """Séparé du téléchargement pour être testable sur une réponse enregistrée."""
+def fetch_courses_osm(communes):
+    """Supérettes, supermarchés et boutiques de stations ouverts la nuit."""
+    res = overpass(OVERPASS_COURSES, "courses")
+    if res is None:
+        return []
+    return parse_manger_osm(res, communes, adresses_osm(res), prefixe="co")
+
+
+def parse_manger_osm(res, communes, adresses=None, prefixe="mo"):
+    """Séparé du téléchargement pour être testable sur une réponse enregistrée.
+
+    Sert aux deux requêtes — fast-foods et courses : mêmes champs, même règle
+    de nuit, seule la catégorie change, et elle se lit dans les étiquettes."""
     adresses = adresses or {}
     out = []
     for el in res.get("elements", []):
@@ -2669,7 +2764,8 @@ def parse_manger_osm(res, communes, adresses=None):
         ouverts, fermes = parse_opening(tags.get("opening_hours"))
         if not fermes or not any(f and f > NUIT_DES for f in fermes):
             continue                          # ferme avant 23 h tous les jours
-        nom = (tags.get("name") or tags.get("brand") or "Fast-food").strip()
+        cat, defaut = categorie(tags)
+        nom = (tags.get("name") or tags.get("brand") or defaut).strip()
         h24 = 1 if re.sub(r"\s", "", tags.get("opening_hours") or "") == "24/7" else 0
         rue, ville, dept = situer(lat, lon, adresses, communes, tags)
         # Le rectangle Overpass déborde sur l'Oise, l'Eure et l'Eure-et-Loir :
@@ -2680,7 +2776,7 @@ def parse_manger_osm(res, communes, adresses=None):
         if dept not in IDF_DEPTS:
             continue
         item = {
-            "id": "mo%s" % el.get("id"),
+            "id": "%s%s" % (prefixe, el.get("id")),
             "name": nom,
             # La commune d'abord : la ligne se coupe par la droite, et savoir
             # qu'on parle de Nanterre importe plus que le numéro de la rue.
@@ -2688,6 +2784,7 @@ def parse_manger_osm(res, communes, adresses=None):
             "dept": dept,
             "lat": round(float(lat), 5), "lon": round(float(lon), 5),
             "o": ouverts, "f": fermes,
+            "t": cat,
         }
         # Drapeaux écrits seulement quand ils valent quelque chose : sur neuf
         # cents fiches, deux clés à zéro, c'est trente kilo-octets pour rien.
@@ -2753,12 +2850,28 @@ def manual_places(name, kind):
             "lat": lat, "lon": lon,
         }
         if kind == "manger":
+            horaires = (r.get("horaires") or "").strip()
             item.update({
-                "hours": (r.get("horaires") or "").strip(),
+                "hours": horaires,
+                "t": (r.get("type") or "autre").strip().lower() or "autre",
                 "parking": (r.get("parking") or "").strip().lower() in ("1", "oui", "o"),
                 "wc": (r.get("toilettes") or "").strip().lower() in ("1", "oui", "o"),
                 "price": (r.get("prix") or "").strip(),
             })
+            # Les horaires saisis à la main sont analysés comme ceux
+            # d'OpenStreetMap : la fiche se range alors toute seule dans
+            # « encore ouvert », avec son heure de fermeture affichée. Faute de
+            # quoi elle resterait visible à midi comme à quatre heures du
+            # matin, ce qui est exactement le défaut qu'on reproche aux
+            # annuaires.
+            ouverts, fermes = parse_opening(horaires_vers_osm(horaires))
+            if fermes and any(f is not None for f in fermes):
+                item["o"], item["f"] = ouverts, fermes
+                if horaires_vers_osm(horaires) == "24/7":
+                    item["h24"] = 1
+            else:
+                log("  ! horaires non compris pour %r : %r — fiche affichée "
+                    "en permanence" % (item["name"], horaires))
         else:
             item["note"] = (r.get("note") or "").strip()
         out.append(item)
@@ -2882,11 +2995,17 @@ def main():
         log("  %d toilettes de banlieue (OpenStreetMap)" % len(banlieue))
         manger_nuit = fetch_manger_osm(communes)
         log("  %d fast-foods ouverts la nuit (OpenStreetMap)" % len(manger_nuit))
+        courses = fetch_courses_osm(communes)
+        log("  %d supérettes, supermarchés et stations ouverts la nuit" % len(courses))
+        a_la_main = manual_places("manger.csv", "manger")
+        log("  %d fiches saisies à la main" % len(a_la_main))
         write(out, "lieux", {
             "generated_at": iso(now),
             "toilettes": wc + banlieue,
             "astuces": fetch_astuces(),
-            "manger": manual_places("manger.csv", "manger") + manger_nuit,
+            # Les fiches du terrain d'abord : à distance égale, ce qui a été
+            # vérifié par un chauffeur passe devant ce qui vient d'une base.
+            "manger": a_la_main + manger_nuit + courses,
         })
 
     log("terminé.")

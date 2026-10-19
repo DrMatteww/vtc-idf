@@ -1,2 +1,3 @@
-nom;adresse;dept;lat;lon;horaires;parking;toilettes;prix;actif
-EXEMPLE — Fast-food 24h;Porte de la Chapelle, Paris 18e;75;48.8976;2.3597;24/24h;oui;oui;€;0
+nom;adresse;dept;lat;lon;horaires;type;parking;toilettes;prix;actif
+EXEMPLE — Chez Momo;12 rue de la Gare, Montreuil;93;48.8632;2.4430;lun-sam 11h-2h, dim 12h-minuit;sandwich;oui;non;€;0
+EXEMPLE — Franprix de nuit;3 av. Jean Jaurès, Paris 19e;75;48.8830;2.3760;24/24;super;non;non;€€;0

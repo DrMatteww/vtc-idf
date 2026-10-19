@@ -1107,6 +1107,32 @@ var VTC = (function () {
     return spanLabel(c.from, c.to);
   }
 
+  /* ---- Les familles de « Manger » ---------------------------------------
+     Un chauffeur qui cherche à manger à deux heures du matin ne cherche pas
+     « un restaurant » : il cherche du sûr (une chaîne — il sait ce qu'il
+     trouve, il y a un parking et souvent des toilettes), du rapide (grec,
+     kebab, tacos, sandwich), ou de quoi tenir jusqu'au matin (supérette,
+     station). Ces quatre-là font des pastilles ; le reste — burger
+     indépendant, poulet, asiatique — reste sous « Tout », parce qu'une
+     pastille qui ne ramène rien est une déception de plus au volant.
+
+     La catégorie est écrite dans la donnée (champ « t »), jamais devinée
+     ici : elle vient des étiquettes d'OpenStreetMap, ou de la colonne « type »
+     des fiches saisies à la main.                                          */
+  var MANGER = [
+    { code: 'all',      label: 'Tout' },
+    { code: 'chaine',   label: 'Chaînes' },
+    { code: 'sandwich', label: 'Grec · Sandwich' },
+    { code: 'pizza',    label: 'Pizza' },
+    { code: 'super',    label: 'Supérette' },
+    { code: 'station',  label: 'Station' }
+  ];
+
+  function inManger(it, code) {
+    if (!code || code === 'all') return true;
+    return (it.t || 'autre') === code;
+  }
+
   /* ---- Aller d'un onglet à l'autre --------------------------------------
      GoodBarber donne un lien interne par section ; la prévisualisation, elle,
      vit dans une iframe et prévient sa coquille. Un seul endroit à toucher
@@ -1424,7 +1450,7 @@ var VTC = (function () {
     geoKnown: geoKnown,
     timeCell: timeCell, isSortie: isSortie, ico: ico,
     meteoNow: meteoNow, meteoHtml: meteoHtml,
-    mangerEtat: mangerEtat,
+    mangerEtat: mangerEtat, MANGER: MANGER, inManger: inManger,
     ECHEANCES: ECHEANCES, echeances: echeances,
     setEcheance: setEcheance, echeanceUrgente: echeanceUrgente,
     joursAvant: joursAvant,

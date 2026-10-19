@@ -1025,6 +1025,96 @@ l'Essonne, 48 dans le Val-d'Oise, 47 dans les Yvelines. Les plus tardifs
 ferment à 6 h : Burger King au 80 avenue du Général-Leclerc (Paris 14e),
 McDonald's 111 cours de Vincennes (Paris 20e).
 
+#### Les courses de nuit : supérettes, supermarchés, stations
+
+Un fast-food n'est pas toujours ce qu'on cherche. Une seconde requête ramène
+les **commerces** ouverts tard, avec le même filtre de nuit :
+
+| | |
+|---|---|
+| commerces avec horaires (supérettes, supermarchés, boutiques de stations) | **4 549** |
+| encore ouverts après 23 h | **882**, dont **661 ouverts 24h/24** |
+| retenus en Île-de-France après filtrage des départements | **807** |
+| dont boutiques de stations | **554** |
+| dont supérettes et supermarchés | **257** |
+
+Les stations sont la vraie découverte : **554 points ouverts 24h/24**, souvent
+les seuls dans une commune à quatre heures du matin, et là où on fait le plein
+de toute façon. `lieux.json` passe de 551 à 721 Ko — c'est un téléchargement
+hebdomadaire, gardé en cache sur le téléphone.
+
+#### Six familles, et pourquoi celles-là
+
+Un chauffeur qui cherche à manger à deux heures du matin ne cherche pas « un
+restaurant » : il cherche **du sûr** (une chaîne : il sait ce qu'il trouve, il
+y a un parking et souvent des toilettes), **du rapide** (grec, kebab, tacos,
+sandwich), ou **de quoi tenir jusqu'au matin** (supérette, station).
+
+| Pastille | Ce qu'elle contient | Combien |
+|---|---|---|
+| Tout | tout, y compris ce qui n'a pas de famille | 1 655 |
+| Chaînes | marque reconnue : McDonald's, KFC, Burger King, Subway, O'Tacos… | 376 |
+| Grec · Sandwich | `cuisine` = kebab, sandwich, turkish, french_tacos, lebanese | 130 |
+| Pizza | `cuisine` = pizza | 57 |
+| Supérette | `shop` = supermarket ou convenience | 257 |
+| Station | `amenity` = fuel avec une boutique | 554 |
+
+Le reste — burger indépendant, poulet, asiatique, 267 + 14 fiches — n'a pas de
+pastille et vit sous « Tout ». C'est volontaire : **une pastille qui ne ramène
+rien est une déception de plus au volant**, et à trois heures du matin on ne
+cherche pas un poke.
+
+La catégorie est écrite **dans la donnée** (champ `t`), jamais devinée par
+l'application : elle vient des étiquettes OpenStreetMap via `categorie()`, ou
+de la colonne `type` des fiches saisies à la main. L'ordre de lecture compte :
+station, puis commerce, puis marque, puis cuisine — sans quoi un Carrefour
+City serait rangé dans « Chaînes » au lieu de « Supérette ».
+
+Conséquence assumée : quelques enseignes d'aéroport taguées `convenience` dans
+OpenStreetMap — Brioche Dorée, Pret A Manger au terminal 2E — se retrouvent en
+« Supérette ». C'est l'étiquette de la base, et pour un chauffeur à Roissy à
+trois heures du matin, savoir qu'il y a quelque chose d'ouvert dans le
+terminal est exactement ce qu'il veut.
+
+#### Ajouter ses propres adresses
+
+`manger.csv` sert à ça, et c'est le contenu qui n'existe nulle part ailleurs :
+les sandwicheries de quartier qu'OpenStreetMap ignore, les supermarchés ouverts
+tard, les fiches avec parking et toilettes.
+
+```
+nom;adresse;dept;lat;lon;horaires;type;parking;toilettes;prix;actif
+Chez Momo;12 rue de la Gare, Montreuil;93;48.8632;2.4430;lun-sam 11h-2h, dim 12h-minuit;sandwich;oui;non;€;1
+```
+
+- **`horaires`** s'écrit comme on parle : `11h-2h`, `24/24`, `lun-sam 11h-2h,
+  dim 12h-minuit`, `9h à 23h30`. Les règles de jours se séparent par une
+  **virgule**, jamais par un point-virgule — c'est le séparateur du fichier.
+  Le texte est traduit en syntaxe OpenStreetMap puis analysé par `parse_opening`,
+  déjà éprouvé sur trois mille fiches : la fiche se range alors toute seule
+  dans « encore ouvert », avec son heure de fermeture. Ce qui n'est pas compris
+  n'est **pas deviné** : le script le dit dans son journal, la ligne garde son
+  texte et reste visible à toute heure ;
+- **`type`** vaut `chaine`, `sandwich`, `pizza`, `super`, `station`, `asiat` ou
+  `autre` — c'est ce qui décide de la pastille ;
+- **`actif`** à `0` met la ligne de côté sans la supprimer.
+
+Ces fiches passent **devant** les reprises automatiques à distance égale : ce
+qu'un chauffeur a vérifié vaut mieux que ce qu'une base affirme.
+
+#### Overpass refuse depuis GitHub : la graine
+
+Les cinq miroirs Overpass refusent les requêtes venant des serveurs GitHub.
+C'est à ça que sert `scripts/graine/` : une copie de la dernière bonne réponse,
+livrée avec le projet, utilisée seulement si tout le reste échoue. **Elle
+contient désormais aussi `overpass-courses.json.gz`** — sans quoi les 807
+supérettes et stations auraient disparu en ligne sans prévenir, alors que tout
+marchait en local.
+
+Vérifié en simulant la panne, miroirs pointés vers un domaine inexistant :
+848 fast-foods et 807 commerces sortent quand même, avec la même répartition
+par famille.
+
 #### Lire des horaires écrits par des humains
 
 `opening_hours` est une syntaxe à part entière — jours fériés, semaines paires,

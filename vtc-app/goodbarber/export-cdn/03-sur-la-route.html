@@ -54,6 +54,7 @@
   var geoErr = null;
   var cache  = {};            // fichiers déjà téléchargés
   var only24 = false;
+  var famille = 'all';        // pastille de « Manger » : chaîne, grec, supérette…
   var body   = document.getElementById('body');
 
   /* Chaque sous-section déclare le fichier dont elle a besoin : on ne
@@ -116,6 +117,12 @@
         [{ code: 'all', label: 'Toutes' }, { code: '24', label: 'Ouvert 24h' }],
         only24 ? '24' : 'all',
         function (c) { only24 = (c === '24'); show(); });
+    } else if (tab === 'manger') {
+      /* Le choix n'est pas mémorisé d'une ouverture à l'autre : on a faim de
+         choses différentes selon les soirs, et retrouver « Pizza » coché trois
+         jours plus tard n'aide personne.                                   */
+      VTC.renderChips(host, VTC.MANGER, famille,
+        function (c) { famille = c; show(); });
     } else {
       host.innerHTML = '';
     }
@@ -254,7 +261,12 @@
     /* Manger : on écarte ce qui est déjà fermé pour la nuit en cours. Les
        fiches saisies à la main n'ont pas d'horaires détaillés, elles restent. */
     if (tab === 'manger') {
-      list = list.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
+      /* Deux filtres, dans cet ordre : ce qui est ouvert maintenant, puis la
+         famille choisie. Une fiche sans horaires lisible reste affichée —
+         mieux vaut un lieu à vérifier qu'un écran vide.                    */
+      list = list.filter(function (it) {
+        return (!it.f || VTC.mangerEtat(it)) && VTC.inManger(it, famille);
+      });
     }
 
     /* Position connue : cinq suffisent, et ce sont vraiment les cinq d'à
@@ -264,9 +276,14 @@
     var items = withDist(list).slice(0, combien);
 
     if (!items.length) {
-      body.innerHTML = '<div class="empty"><span class="empty__ico">🗒</span>' +
-        '<p class="empty__title">Rien à afficher ici</p>' +
-        '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
+      body.innerHTML = tab === 'manger' && famille !== 'all'
+        ? '<div class="empty"><span class="empty__ico">🍔</span>' +
+          '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
+          '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Station</b>, ' +
+          'qui ferme rarement.</p></div>'
+        : '<div class="empty"><span class="empty__ico">🗒</span>' +
+          '<p class="empty__title">Rien à afficher ici</p>' +
+          '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
       return;
     }
 
@@ -305,8 +322,15 @@
     });
 
     html += '</div></div>';
-    if (tab === 'manger')  html += '<p class="note">Seulement ce qui est ' +
-      'encore ouvert cette nuit. Horaires OpenStreetMap, renseignés par des ' +
+    /* « Ouvert cette nuit », pas « ouvert à la seconde » : une ligne peut
+       dire « ouvre à 17h00 », et c'est voulu — à 16 h, savoir que le grec
+       d'à côté ouvre dans une heure vaut mieux qu'une liste vide. L'heure
+       est écrite sur chaque ligne, personne n'a à deviner.               */
+    if (tab === 'manger')  html += '<p class="note">Ce qui est ouvert ' +
+      '<b>cette nuit</b> — ou sur le point de l\'être, l\'heure est sur ' +
+      'chaque ligne. Fast-foods, grecs et sandwicheries, mais aussi ' +
+      'supérettes et boutiques de stations, souvent les seules ouvertes à ' +
+      'quatre heures du matin. Horaires OpenStreetMap, renseignés par des ' +
       'contributeurs : vérifie avant de faire dix kilomètres.</p>';
     if (tab === 'wc')      html += '<p class="note">' +
       (pos ? 'Les 5 plus proches de toi. ' : 'Les 12 premières, faute de position. ') +
