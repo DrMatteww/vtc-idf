@@ -1076,6 +1076,31 @@ OpenStreetMap — Brioche Dorée, Pret A Manger au terminal 2E — se retrouvent
 trois heures du matin, savoir qu'il y a quelque chose d'ouvert dans le
 terminal est exactement ce qu'il veut.
 
+#### « Les Carrefour affichés 24h/24, ce sont les stations »
+
+Signalé par le chauffeur, vérifié dans la donnée, et il avait raison : sur les
+**69 fiches nommées Carrefour, 59 sont des stations-service** — Flins, Bay 2,
+Garges, Chambourcy. Dans OpenStreetMap, la station d'un hypermarché porte le
+nom de l'enseigne et pas le sien : `name=Carrefour`, `amenity=fuel`,
+`shop=convenience;gas`, `opening_hours=24/7`. Affiché tel quel, l'écran disait
+« Carrefour · 24h/24 » et laissait croire que le magasin était ouvert en pleine
+nuit.
+
+La catégorie, elle, était juste — ces fiches étaient bien rangées en
+« Station ». C'est le **nom** qui mentait. Il est donc préfixé : « Station
+Carrefour », « Station TotalEnergies », sauf quand il contient déjà *station*
+ou *relais* (`E.Leclerc Station Service` est laissé tel quel). Les 554 stations
+disent maintenant ce qu'elles sont.
+
+Et ce qui reste en « Supérette » après correction est exactement ce que le
+chauffeur décrit : **Carrefour City, Market et Express, à Paris principalement**
+— ce sont eux qui ouvrent la nuit, pas les hypermarchés.
+
+Dernier point d'honnêteté, écrit dans la note sous la liste : pour une station,
+`24/7` décrit le plus souvent **les pompes**. 627 des 650 stations retenues
+portent `24/7`, ce qui ne veut pas dire que la boutique sert des sandwichs à
+4 h du matin.
+
 #### Chercher une enseigne : « mac do » doit trouver McDonald's
 
 Les pastilles répondent à « qu'est-ce qu'il y a autour de moi ». Elles ne

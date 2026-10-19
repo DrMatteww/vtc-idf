@@ -2766,6 +2766,14 @@ def parse_manger_osm(res, communes, adresses=None, prefixe="mo"):
             continue                          # ferme avant 23 h tous les jours
         cat, defaut = categorie(tags)
         nom = (tags.get("name") or tags.get("brand") or defaut).strip()
+        # Dans OpenStreetMap, la station d'un hypermarché porte le nom de
+        # l'enseigne, pas celui de la station : « Carrefour », « Carrefour
+        # city », « C. C. Carrefour », avec amenity=fuel et 24/7. Affiché tel
+        # quel, ça fait croire que le magasin de Flins ou de Bay 2 est ouvert
+        # en pleine nuit — c'est faux, ce sont les pompes. Le chauffeur l'a vu
+        # sur le terrain avant moi. On écrit donc ce que c'est.
+        if cat == "station" and not re.search(r"\b(station|relais)\b", nom, re.I):
+            nom = "Station " + nom
         h24 = 1 if re.sub(r"\s", "", tags.get("opening_hours") or "") == "24/7" else 0
         rue, ville, dept = situer(lat, lon, adresses, communes, tags)
         # Le rectangle Overpass déborde sur l'Oise, l'Eure et l'Eure-et-Loir :
