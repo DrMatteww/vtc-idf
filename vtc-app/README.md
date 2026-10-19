@@ -152,15 +152,50 @@ corriger un bug ne demande pas de recoller les quatre sections.
 Ces fichiers sont générés : on édite `cdn/` ou `goodbarber/`, puis on relance
 le script.
 
-### Deux réglages à finir
+### La barre d'onglets
 
-- Dans `01-brief.html`, renseigne `GOTO_TRAFIC` avec le lien interne que
-  GoodBarber génère pour la section « Sur la route », **suivi de `#trafic`** :
-  la carte rouge « Attention » du brief devient alors cliquable et ouvre
-  directement la liste des fermetures, sans passer par les toilettes. Vide, la
-  carte reste affichée, simplement non cliquable. C'est le seul lien interne
-  dont l'application a besoin : le bouton « Tout voir » a été retiré, la barre
-  d'onglets faisant déjà ce travail.
+C'est **GoodBarber qui la fournit**, configurée dans son back-office : native,
+avec les icônes de ton choix, et elle garde l'onglet actif toute seule. C'est
+ce qui est en place.
+
+`goodbarber/menu.html` contient une barre équivalente en HTML, dans le même
+langage visuel que la sous-barre de *Sur la route*. Elle n'est **pas utilisée**
+— elle reste là au cas où une offre ou un gabarit ne proposerait pas de
+navigation native. Elle a besoin des liens internes de GoodBarber, décrits
+juste en dessous.
+
+### La carte « Attention » : elle se déplie sur place
+
+Le brief ne montre qu'une fermeture, celle qui arrive. Un clic **sur la carte
+rouge** ouvre les autres **dans le brief**, sous une ligne « Nuit de lundi à
+mardi, 21h → 6h » ; un second clic referme. Rien à configurer, rien à brancher :
+c'est le comportement par défaut, et c'est celui qui est en place.
+
+C'est aussi, à l'usage, mieux que le saut d'onglet prévu au départ : un geste au
+lieu de deux, et on ne perd pas le brief de vue. La première fermeture n'est pas
+répétée dans la liste dépliée — « Voir les 17 autres », et ce sont bien dix-sept
+lignes nouvelles.
+
+**Si tu préfères quand même ouvrir l'onglet *Trafic*** : chez GoodBarber, un
+lien interne n'a rien de spécial, c'est l'adresse de ton application suivie du
+raccourci de la section —
+
+```
+https://mon-app.goodbarber.app/sur-la-route#trafic
+```
+
+L'app reconnaît son propre domaine et reste dedans au lieu d'ouvrir le
+navigateur ([documentation GoodBarber][gb-liens]). Pour l'adresse exacte : ouvre
+la section en mode web app et recopie la barre d'adresse, puis ajoute `#trafic`.
+Elle se renseigne dans `GOTO_TRAFIC`, en haut de `01-brief.html` ; remplie, la
+carte saute dans *Trafic* au lieu de se déplier. Le `#trafic` est ce que lit
+`03-sur-la-route.html` pour ouvrir la bonne sous-section (`#wc`, `#manger`,
+`#trafic`, `#astuces`). C'est le même mécanisme dont `menu.html` aurait besoin.
+
+[gb-liens]: https://goodbarber.com/help/plugins-api-documentation-r108/basic-methods-a271
+
+### Un réglage à finir
+
 - La carte « Un bon plan à partager ? » a été retirée de `04-infos.html` : elle
   ouvrait l'application mail du chauffeur, et une boîte de réception interne à
   GoodBarber fera mieux — pas d'adresse exposée, et les retours terrain
@@ -840,27 +875,38 @@ Un week-end, le bloc de la nuit est souvent vide : la DiRIF ne ferme presque
 rien de 21 h à 6 h du vendredi soir au dimanche soir. L'écran le dit plutôt que
 de laisser croire à une panne.
 
-#### Ce qui dure : un second bloc, « en continu »
+#### Ce qui dure : retiré, et pourquoi
 
-Vide ne veut pas dire que la route est libre. Du vendredi au dimanche, **tout
-ce que Sytadin publie est du 24h/24** — des bretelles coupées en permanence, et
-parfois bien plus : *A14 vers Paris, entre Nanterre (A86) et le pont de
-Neuilly*. Ces lignes avaient d'abord été retirées, parce que leur coller un
-bandeau « 21h00 → 06h00 » était faux. Les retirer rendait l'onglet vide tous
-les week-ends, ce qui était pire.
+Il y a eu un second bloc, « Fermé en continu, jour et nuit » : les 24h/24 de
+Sytadin (`kind: "continu"`) et les chantiers DATEX, mis à part parce que leur
+coller un bandeau « 21h00 → 06h00 » était faux. Il existait surtout parce que
+le bloc de la nuit est vide tous les week-ends.
 
-Elles sont donc gardées, **à part et sans horaire inventé** :
+**Il a été retiré le 19 octobre 2026**, à la demande du chauffeur, et
+l'argument est meilleur que celui qui l'avait fait naître : une bretelle coupée
+en permanence ou un chantier déjà en place, **Waze et Google Maps les
+connaissent et dévient tout seuls**. Les afficher, c'était doubler le GPS sur
+son propre terrain. Ce qu'aucun GPS ne sait dire, en revanche, c'est qu'**à
+21 h ce soir l'A86 ferme** : on s'y prépare, on ne la découvre pas. C'est la
+seule chose que l'app annonce désormais.
 
-| Bloc | Ce qu'il contient | Ce qu'affiche le bandeau |
-|---|---|---|
-| Nuit de … à …, 21h → 6h | les fermetures nocturnes de cette nuit-là | `21h00 → 06h00` |
-| Fermé en continu, jour et nuit | les 24h/24 de Sytadin (`kind: "continu"`) et les chantiers DATEX | `en continu`, ou `jusqu'au 23/10` quand la source donne une date |
+Conséquence assumée, et visible : le week-end, le brief n'a plus de carte rouge
+et *Trafic* affiche « Rien de fermé cette nuit ». C'est vrai, et c'est une
+bonne nouvelle — pas un écran cassé.
+
+Côté code, les données n'ont pas changé : `build_data.py` continue de produire
+les lignes `continu` et `chantier` (elles coûtent trois lignes de JSON, et les
+jeter nous priverait de l'historique le jour où l'on changerait d'avis). C'est
+`VTC.standingClosures` qui renvoie désormais une **liste vide** — une fonction
+plutôt qu'une suppression, parce que les écrans déjà publiés dans GoodBarber
+l'appellent, et qu'un onglet qui plante sur `undefined is not a function` chez
+un chauffeur en service serait un prix absurde à payer. `isStanding`, lui, sert
+toujours : c'est lui qui écarte ces fermetures de la nuit en cours.
 
 Sytadin ne publie **aucune date de réouverture** pour ses 24h/24 : en inventer
 une aurait été pire que de l'écrire. Le `to` stocké dans le JSON est seulement
 le dernier jour où la fermeture apparaît à leur programme — il sert à la faire
-disparaître d'elle-même, jamais à être affiché. La même fermeture revenant à
-l'identique sur les sept pages de la semaine, elle est regroupée en une ligne.
+disparaître d'elle-même, jamais à être affiché.
 
 Dernier détail, trouvé en route : le dédoublonnage avec DATEX ne compare plus
 que les fermetures **de nuit**. Une bretelle d'A15 coupée en continu avait fait
@@ -1100,10 +1146,10 @@ le concert à l'heure où il commence. Elle n'est jamais écrite à l'écran.
 
 Pour élargir ou resserrer, `BAND_HOURS` est la seule valeur à changer.
 
-### Ce qui est passé disparaît, et demain attend 6 h
+### Ce qui est passé disparaît, demain attend 6 h, et après-demain n'existe pas
 
-Deux règles, une seule fonction (`VTC.live` dans `app.js`), appliquées au brief
-comme à *Où aller* :
+Trois règles, une seule fonction (`VTC.live` dans `app.js`), appliquées au
+brief comme à *Où aller* :
 
 - **Une tranche finie disparaît à la seconde où elle finit.** « 18h-20h » n'a
   plus rien à dire à 20 h 01. Il y avait auparavant une tolérance de trente
@@ -1112,8 +1158,16 @@ comme à *Où aller* :
   arrivées de demain ne s'affichent donc qu'à partir de 6 h demain : à 23 h,
   personne ne va se placer pour un TGV de 8 h, et ces lignes poussaient le
   reste hors de l'écran. Les **événements échappent à la règle** — un match ou
-  un salon, ça se prépare la veille : les sections « Demain » et « mardi 20
-  octobre » ne contiennent plus qu'eux.
+  un salon, ça se prépare la veille : la section « Demain » ne contient plus
+  qu'eux.
+- **La liste s'arrête à la fin de la journée de demain** (`HORIZON_J = 2`).
+  Ticketmaster publie à dix jours ; affichée telle quelle, la liste mélangeait
+  la soirée en cours et les concerts de la semaine suivante, qui la poussaient
+  hors de l'écran. Au volant, un match dans six jours n'est pas une
+  information : c'est du bruit entre soi et ce qu'on cherche. La coupure se
+  fait à **6 h du matin**, comme le reste — à 2 h, « aujourd'hui » est encore
+  la nuit qu'on est en train de faire, et on ne perd pas la soirée en cours en
+  passant minuit.
 
 ### La météo, en haut à droite
 

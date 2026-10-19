@@ -1,0 +1,91 @@
+<!-- ===========================================================
+     VTC IDF — BARRE D'ONGLETS
+     À coller À LA FIN de chacune des quatre sections, juste avant
+     la fin du contenu. Deux lignes à régler dans chaque section :
+     ACTIF (l'onglet où l'on se trouve) et les quatre liens.
+     =========================================================== -->
+<style>
+  /* La barre flotte au-dessus du contenu : on rend sa hauteur au bas de la
+     page, sinon la dernière ligne de chaque écran passe dessous. */
+  body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important; }
+
+  .gbnav {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: #1E1E23;                 /* le filet entre les tuiles */
+    border-top: 1px solid #2A2A31;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    font-family: Barlow, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  }
+
+  .gbnav a {
+    min-height: 56px;
+    background: #121214;
+    color: #63636C;
+    border-top: 2px solid transparent;
+    text-decoration: none;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .gbnav a span { font-size: 18px; line-height: 1; filter: grayscale(1); opacity: .8; }
+
+  /* L'onglet courant : filet blanc en haut, texte plein. Même langage que la
+     sous-barre de « Sur la route », pour qu'on lise une seule interface. */
+  .gbnav a.on { color: #F4F4F5; background: #1B1B1F; border-top-color: #FFF; }
+  .gbnav a.on span { opacity: 1; }
+</style>
+
+<nav class="gbnav" id="gbnav"></nav>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ⚠️ LES DEUX SEULES CHOSES À RÉGLER.
+
+     1. ACTIF : 'brief', 'ou-aller', 'route' ou 'reglages' — selon la section
+        dans laquelle tu colles ce bloc.
+     2. LIENS : les liens internes que GoodBarber donne pour chaque section.
+        Tant qu'ils sont vides, l'onglet courant s'affiche quand même et les
+        autres ne font rien : aucun lien mort, rien de cassé.              */
+  var ACTIF = 'brief';
+
+  var LIENS = {
+    brief:    '',
+    'ou-aller': '',
+    route:    '',
+    reglages: ''
+  };
+
+  var ONGLETS = [
+    { code: 'brief',    ico: '📄', label: 'Brief' },
+    { code: 'ou-aller', ico: '📍', label: 'Où aller' },
+    { code: 'route',    ico: '🚗', label: 'Sur la route' },
+    { code: 'reglages', ico: '⚙️', label: 'Réglages' }
+  ];
+
+  document.getElementById('gbnav').innerHTML = ONGLETS.map(function (o) {
+    var url = LIENS[o.code] || '';
+    var courant = o.code === ACTIF;
+    return '<a' + (courant ? ' class="on" aria-current="page"' : '') +
+           (url && !courant ? ' href="' + url + '"' : ' href="#"') + '>' +
+           '<span>' + o.ico + '</span>' + o.label + '</a>';
+  }).join('');
+
+  /* Un onglet sans lien ne doit pas renvoyer en haut de la page. */
+  document.getElementById('gbnav').addEventListener('click', function (e) {
+    var a = e.target.closest('a');
+    if (a && a.getAttribute('href') === '#') e.preventDefault();
+  });
+})();
+</script>

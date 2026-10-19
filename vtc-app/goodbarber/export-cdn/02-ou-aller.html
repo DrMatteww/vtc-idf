@@ -90,11 +90,15 @@
     var data = state.data;
     if (!data) return;
 
-    /* VTC.live fait deux choses : il enlève la ligne dès que son créneau est
-       passé — « 18h-20h » n'a plus rien à dire à 20h01 — et il arrête les
-       trains et les vols à 6 h du matin : les arrivées de demain ne
-       s'affichent que demain. Les événements, eux, restent visibles à
-       l'avance : un match ou un salon, ça se prépare la veille.          */
+    /* VTC.live fait trois choses : il enlève la ligne dès que son créneau est
+       passé — « 18h-20h » n'a plus rien à dire à 20h01 ; il arrête les
+       trains et les vols à 6 h du matin, les arrivées de demain ne
+       s'affichant que demain ; et il coupe la liste à la fin de la journée
+       de DEMAIN. La billetterie publie à dix jours : affichés tels quels,
+       les concerts de la semaine suivante poussaient la soirée en cours hors
+       de l'écran, pour une information dont on ne fait rien au volant. Les
+       événements du lendemain, eux, restent visibles : un match ou un salon,
+       ça se prépare la veille.                                           */
     var items = VTC.live(data.demand)
       .filter(function (it) {
         if (!VTC.inFilter(it.kind, state.kind)) return false;

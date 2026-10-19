@@ -1,5 +1,5 @@
 <!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>01-brief.html</title></head><body>
-<script>window.__VTC_BASE='../cdn/data/';window.__VTC_GOTO={trafic:'03-sur-la-route.html#trafic'};</script>
+<script>window.__VTC_BASE='../cdn/data/';</script>
 <!-- ===========================================================
      ONGLET 1 — BRIEF  (section « Custom / HTML » GoodBarber)
      Le titre suit l'heure d'ouverture : Ce matin / Ce midi /
@@ -39,11 +39,19 @@
 (function () {
   'use strict';
 
-  // ⚠️ À remplir avec le lien interne que GoodBarber génère pour la section
-  // « Sur la route », suivi de « #trafic » : la carte rouge « Attention »
-  // ouvre alors directement la liste des fermetures. Laissé vide, la carte
-  // reste affichée, simplement non cliquable — jamais cassée. La
-  // prévisualisation le remplit toute seule.
+  /* Lien interne vers l'onglet Trafic. Chez GoodBarber, un lien interne n'a
+     rien de spécial : c'est l'adresse de TON application suivie du raccourci
+     de la section, par exemple
+         https://mon-app.goodbarber.app/sur-la-route#trafic
+     L'app reconnaît son propre domaine et reste dedans au lieu d'ouvrir le
+     navigateur. Pour trouver l'adresse exacte : ouvre la section en mode web
+     app et recopie ce qu'affiche la barre d'adresse, puis ajoute #trafic.
+
+     Laissé vide — c'est le cas par défaut — la carte rouge ne va nulle part :
+     elle se DÉPLIE sur place et montre toutes les fermetures de la nuit. Un
+     geste au lieu de deux, et on ne quitte pas le brief ; c'est pour ça que
+     ça reste le comportement normal même une fois le lien rempli, sauf si tu
+     préfères vraiment le saut d'onglet.                                    */
   var GOTO_TRAFIC = (window.__VTC_GOTO || {}).trafic || '';
 
   var now    = new Date();
@@ -241,13 +249,16 @@
     /* --- Bloc 3 : le piège à éviter. Disparaît s'il n'y a rien. ------------
        Les fermetures nocturnes courent de 21h à 5h du lundi au vendredi :
        on prévient 3 h à l'avance pour laisser le temps de s'organiser.     */
-    /* Ce qui ferme cette nuit passe devant ; faute de quoi — tous les
-       week-ends — on montre ce qui est coupé en continu, plutôt que rien. */
+    /* Uniquement ce qui ferme CETTE NUIT. Les fermetures permanentes — les
+       bretelles coupées 24h/24, les chantiers déjà en place — ne sont plus
+       annoncées : Waze et Google Maps les connaissent et dévient tout seuls.
+       Ce qu'un GPS ne sait pas dire, c'est qu'à 21 h ce soir l'A86 ferme.
+       Conséquence assumée : le week-end, la DiRIF ne publiant presque que du
+       24h/24, il n'y a pas de carte rouge. Rien à signaler, donc rien. */
     var nuit = VTC.currentNight();
-    var ceSoir = VTC.nightClosures(toutesFerm, nuit).filter(function (c) {
+    var clos = VTC.nightClosures(toutesFerm, nuit).filter(function (c) {
       return new Date(c.from).getTime() <= Date.now() + 180 * 60000;
     });
-    var clos = ceSoir.length ? ceSoir : VTC.standingClosures(toutesFerm);
     if (clos.length) {
       var c = clos[0];
       var corps =
@@ -260,19 +271,45 @@
             '<span class="tag tag--alert">' + VTC.esc(VTC.closureBadge(c)) +
             '</span> ' + VTC.deptTag(c.dept) +
           '</p>';
-      /* Un clic mène à la liste complète, dans Sur la route → Trafic : la
-         carte n'en montre qu'une, et c'est là que sont les autres.        */
-      html += GOTO_TRAFIC
-        ? '<a class="card card--alert" id="goTrafic" href="' + GOTO_TRAFIC + '">' +
-          corps + '<p class="note" style="text-align:right;padding-top:6px">' +
-          'Tout le trafic →</p></a>'
-        : '<div class="card card--alert">' + corps + '</div>';
+      /* Deux façons de voir les autres fermetures. Par défaut la carte se
+         déplie sur place : la liste de la nuit tient en trois lignes et on
+         reste dans le brief. Si GOTO_TRAFIC est rempli, c'est l'onglet
+         Trafic qui s'ouvre — même contenu, un écran de plus.            */
+      if (GOTO_TRAFIC) {
+        html += '<a class="card card--alert" id="goTrafic" href="' + GOTO_TRAFIC + '">' +
+          corps + '<p class="note note--go">Tout le trafic →</p></a>';
+      } else if (clos.length > 1) {
+        html += '<div class="card card--alert card--clic" id="ferm" ' +
+            'role="button" tabindex="0" aria-expanded="false">' + corps +
+          '<p class="note note--go" id="fermPlus">Voir les ' + (clos.length - 1) +
+            ' autres ↓</p>' +
+          /* La première est déjà au-dessus : la répéter donnait deux fois la
+             même ligne l'une sous l'autre, ce qui se lit comme un bug. */
+          '<div class="alert-list hidden" id="fermListe">' +
+            '<p class="note">' + VTC.esc(VTC.nightTitle(nuit)) + '</p>' +
+            clos.slice(1).map(function (f) {
+              return '<div class="row"><div class="row__body">' +
+                '<p class="row__title"><span class="row__name">' +
+                  VTC.esc(f.title) + '</span><span class="tag tag--alert">' +
+                  VTC.esc(VTC.closureBadge(f)) + '</span></p>' +
+                (f.detail
+                  ? '<p class="row__sub"><span class="row__what">' +
+                    VTC.esc(f.detail) + '</span></p>'
+                  : '') +
+              '</div></div>';
+            }).join('') +
+          '</div></div>';
+      } else {
+        /* Une seule fermeture : la carte la montre déjà en entier, déplier
+           n'ouvrirait sur rien de plus. */
+        html += '<div class="card card--alert">' + corps + '</div>';
+      }
     }
 
     /* Pas de bouton « Tout voir » : la barre d'onglets est juste en dessous et
-       fait déjà ce travail. Le brief tient sur un écran, c'est tout son intérêt.
-       Seule la carte rouge reste cliquable, parce qu'elle, elle mène à une
-       liste qu'on ne devinerait pas.                                       */
+       fait déjà ce travail. Le brief tient sur un écran, c'est tout son
+       intérêt. Seule la carte rouge se touche, parce qu'elle seule cache
+       quelque chose — les autres fermetures de la nuit.                    */
 
     /* --- Une échéance qui approche ----------------------------------------
        Une ligne, tout en bas, et seulement dans le dernier mois : l'appli ne
@@ -296,6 +333,28 @@
     if (lien) {
       lien.addEventListener('click', function (e) {
         if (VTC.go(GOTO_TRAFIC)) e.preventDefault();
+      });
+    }
+
+    /* Le dépliage. Un clic n'importe où sur la carte ouvre ou referme : au
+       volant, une cible de la taille de la carte vaut mieux qu'un lien de
+       trois mots. Le clavier suit (Entrée / Espace) pour les lecteurs
+       d'écran, ça ne coûte que deux lignes.                              */
+    var carte = document.getElementById('ferm');
+    if (carte) {
+      var liste = document.getElementById('fermListe');
+      var invite = document.getElementById('fermPlus');
+      var nb = clos.length;
+      function basculer() {
+        var ouvert = liste.classList.toggle('hidden') === false;
+        carte.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+        invite.textContent = ouvert
+          ? 'Replier ↑'
+          : 'Voir les ' + (nb - 1) + ' autres ↓';
+      }
+      carte.addEventListener('click', basculer);
+      carte.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); basculer(); }
       });
     }
   }

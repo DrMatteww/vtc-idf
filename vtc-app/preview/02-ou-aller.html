@@ -1,5 +1,5 @@
 <!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>02-ou-aller.html</title></head><body>
-<script>window.__VTC_BASE='../cdn/data/';window.__VTC_GOTO={trafic:'03-sur-la-route.html#trafic'};</script>
+<script>window.__VTC_BASE='../cdn/data/';</script>
 <!-- ===========================================================
      ONGLET 2 — OÙ ALLER
      Tout ce qui crée de la demande, en timeline chronologique.
@@ -85,11 +85,15 @@
     var data = state.data;
     if (!data) return;
 
-    /* VTC.live fait deux choses : il enlève la ligne dès que son créneau est
-       passé — « 18h-20h » n'a plus rien à dire à 20h01 — et il arrête les
-       trains et les vols à 6 h du matin : les arrivées de demain ne
-       s'affichent que demain. Les événements, eux, restent visibles à
-       l'avance : un match ou un salon, ça se prépare la veille.          */
+    /* VTC.live fait trois choses : il enlève la ligne dès que son créneau est
+       passé — « 18h-20h » n'a plus rien à dire à 20h01 ; il arrête les
+       trains et les vols à 6 h du matin, les arrivées de demain ne
+       s'affichant que demain ; et il coupe la liste à la fin de la journée
+       de DEMAIN. La billetterie publie à dix jours : affichés tels quels,
+       les concerts de la semaine suivante poussaient la soirée en cours hors
+       de l'écran, pour une information dont on ne fait rien au volant. Les
+       événements du lendemain, eux, restent visibles : un match ou un salon,
+       ça se prépare la veille.                                           */
     var items = VTC.live(data.demand)
       .filter(function (it) {
         if (!VTC.inFilter(it.kind, state.kind)) return false;

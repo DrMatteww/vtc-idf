@@ -33,16 +33,17 @@ def main():
         html = open(os.path.join(SRC, name), encoding="utf-8").read()
         html = CDN.sub("../cdn/", html)
         # app.js pointe vers le CDN pour ses données : on le redirige en local.
-        # Les liens internes de GoodBarber n'existent pas en local : on les
-        # remplace par les fichiers de la prévisualisation, pour pouvoir
-        # vérifier qu'un clic sur « Attention » tombe bien sur le trafic.
+        # __VTC_GOTO n'est PLUS rempli : dans GoodBarber il est vide, et la
+        # carte « Attention » se déplie sur place. La prévisualisation doit
+        # montrer ce qui est livré, pas un chemin que personne n'emprunte.
+        # Pour tester le saut d'onglet, ajouter à la main dans un fichier de
+        # preview/ : window.__VTC_GOTO={trafic:'03-sur-la-route.html#trafic'}.
         wrapper = (
             "<!doctype html><html lang=fr><head><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
             "<title>%s</title></head><body>\n"
-            "<script>window.__VTC_BASE='../cdn/data/';"
-            "window.__VTC_GOTO={trafic:'03-sur-la-route.html#trafic'};"
-            "</script>\n%s\n</body></html>"
+            "<script>window.__VTC_BASE='../cdn/data/';</script>\n"
+            "%s\n</body></html>"
         ) % (name, html)
         open(os.path.join(OUT, name), "w", encoding="utf-8").write(wrapper)
 

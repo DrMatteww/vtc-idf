@@ -563,6 +563,31 @@ a { color: inherit; text-decoration: none; }
 
 .hidden { display: none !important; }
 
+/* ---------- La carte rouge qui se déplie --------------------------------
+   Le brief ne montre qu'une fermeture : les autres sont dessous, et un clic
+   sur la carte les ouvre sur place. Aller les chercher dans un autre onglet
+   demandait deux gestes et un changement d'écran ; là, c'en est un, et on ne
+   quitte pas le brief. Le lien vers l'onglet Trafic reste possible — il
+   suffit de remplir GOTO_TRAFIC en haut du brief. */
+.card--clic { cursor: pointer; }
+
+.alert-list {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.alert-list .row:last-child { border-bottom: 0; }
+.alert-list .note { padding: 10px 0 0; }
+
+/* La ligne d'invite, alignée à droite comme une suite : « ↓ » pour ouvrir,
+   « ↑ » pour refermer. Elle est dans le flux de la carte, pas en bouton :
+   c'est la carte entière qui se touche, pas trois mots de douze pixels. */
+.note--go {
+  text-align: right;
+  padding: 8px 0 0;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
 </style>
 <style>
   body { background:#0A0A0B; color:#F4F4F5; margin:0;
@@ -969,10 +994,30 @@ var VTC = (function () {
 
   var DU_JOUR = { flight: 1, train: 1 };   // ne dépassent pas la journée en cours
 
+  /* ---- L'horizon : aujourd'hui et demain, pas plus ----------------------
+     La billetterie publie jusqu'à dix jours à l'avance. Affichés tels quels,
+     les concerts de la semaine suivante poussaient la soirée en cours hors de
+     l'écran et faisaient une liste qu'on ne lit plus — pour une information
+     sans usage au volant : personne ne se place pour un match dans six jours.
+     On coupe donc à la fin de la journée de DEMAIN, la journée étant celle du
+     chauffeur : elle finit à 6 h du matin, pas à minuit. À 2 h, « aujourd'hui »
+     est donc encore la nuit qu'on est en train de faire.                   */
+  var HORIZON_J = 2;
+
+  function horizonEnd(now) {
+    var d = new Date(now || Date.now());
+    if (d.getHours() < DAY_TO_H) d.setDate(d.getDate() - 1);   // encore la veille
+    var f = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_TO_H, 0, 0, 0);
+    f.setDate(f.getDate() + HORIZON_J);
+    return f;
+  }
+
   function live(items, now) {
-    var t = now ? +now : Date.now(), fin = dayEnd(t).getTime();
+    var t = now ? +now : Date.now();
+    var fin = dayEnd(t).getTime(), hz = horizonEnd(t).getTime();
     return (items || []).filter(function (it) {
       if (endOf(it) <= t) return false;
+      if (new Date(it.start).getTime() >= hz) return false;
       if (DU_JOUR[it.kind] && new Date(it.start).getTime() >= fin) return false;
       return true;
     });
@@ -1049,17 +1094,21 @@ var VTC = (function () {
     }).sort(function (a, b) { return new Date(a.from) - new Date(b.from); });
   }
 
-  function standingClosures(list, now) {
-    var t = now ? +now : Date.now();
-    return (list || []).filter(function (c) {
-      if (!isStanding(c)) return false;
-      if (new Date(c.to).getTime() <= t) return false;
-      return new Date(c.from).getTime() <= t + 24 * 3600 * 1000;
-    }).sort(function (a, b) {
-      var w = { high: 0, medium: 1, low: 2 };
-      return (w[a.severity] === undefined ? 3 : w[a.severity]) -
-             (w[b.severity] === undefined ? 3 : w[b.severity]);
-    });
+  /* Les fermetures permanentes ne sont plus affichées nulle part — décision
+     du terrain : une bretelle coupée 24h/24, un chantier déjà en place, Waze
+     et Google Maps les connaissent et dévient tout seuls. Ce qu'un GPS ne
+     sait pas dire, c'est qu'à 21 h CE SOIR l'A86 ferme : c'est cela, et cela
+     seulement, que l'app annonce.
+
+     La fonction reste, et renvoie une liste vide, pour deux raisons : les
+     écrans déjà publiés dans GoodBarber l'appellent, et le jour où l'on
+     changerait d'avis, le filtre tient en six lignes. isStanding, lui, sert
+     toujours : c'est lui qui écarte ces fermetures de la nuit en cours.
+     Conséquence assumée : le week-end, la DiRIF ne publiant presque que du
+     24h/24, le brief n'a plus de carte rouge et Trafic affiche « rien de
+     fermé cette nuit ». C'est la vérité du terrain, pas un écran cassé.   */
+  function standingClosures() {
+    return [];
   }
 
   /* L'étiquette rouge. Une fermeture permanente n'a pas de date de fin —
@@ -1382,7 +1431,7 @@ var VTC = (function () {
     FILTERS: FILTERS, inFilter: inFilter,
     slotLabel: slotLabel, subLine: subLine,
     score: score, upcoming: upcoming, activeClosures: activeClosures,
-    live: live, endOf: endOf, dayEnd: dayEnd, go: go,
+    live: live, endOf: endOf, dayEnd: dayEnd, horizonEnd: horizonEnd, go: go,
     navUrl: navUrl, navPref: navPref, setNavPref: setNavPref, NAVS: NAVS,
     geoKnown: geoKnown,
     timeCell: timeCell, isSortie: isSortie, ico: ico,
@@ -1528,21 +1577,22 @@ var VTC = (function () {
     var html = '';
 
     if (tab === 'trafic') {
-      /* UNE SEULE NUIT, et ce qui dure à part. La liste de la semaine entière
-         ne servait à rien au volant : ce qui compte, c'est la nuit qu'on est
-         en train de faire. La bascule se fait à 6 h, à la première ouverture,
-         sans rien attendre du serveur.
+      /* UNE SEULE NUIT, celle qu'on est en train de faire. La bascule se fait
+         à 6 h, à la première ouverture, sans rien attendre du serveur.
 
-         Le second bloc existe parce que le premier est vide le week-end : du
-         vendredi au dimanche, la DiRIF ne ferme presque rien de 21 h à 6 h,
-         mais elle laisse des bretelles coupées en continu et les chantiers
-         courent toujours. Les mélanger affichait « 21h → 6h » sur une
-         fermeture permanente, ce qui est faux.                            */
+         Et seulement les fermetures NOCTURNES : celles qui durent — bretelle
+         coupée 24h/24, chantier déjà en place — ne sont plus listées, Waze
+         et Google Maps les connaissent et dévient tout seuls. Ce qu'un GPS
+         ne sait pas dire, c'est qu'à 21 h ce soir l'A86 ferme.
+
+         Conséquence assumée : du vendredi au dimanche, la DiRIF ne ferme
+         presque rien de 21 h à 6 h — tout ce qu'elle publie ces soirs-là est
+         du 24h/24. L'écran dira donc souvent « rien de fermé cette nuit » le
+         week-end. C'est juste, et c'est une bonne nouvelle.               */
       var nuit  = VTC.currentNight();
       var clos  = VTC.nightClosures(list, nuit);
-      var dure  = VTC.standingClosures(list);
 
-      if (!clos.length && !dure.length) {
+      if (!clos.length) {
         body.innerHTML = '<div class="empty"><span class="empty__ico">✅</span>' +
           '<p class="empty__title">Rien de fermé cette nuit</p>' +
           '<p>' + VTC.esc(VTC.nightTitle(nuit)) + '. Le réseau est libre, ' +
@@ -1563,23 +1613,9 @@ var VTC = (function () {
       }
 
       html += '<p class="note" style="margin:0 0 10px">' +
-              VTC.esc(VTC.nightTitle(nuit)) + '</p>';
-      if (clos.length) {
-        html += '<div class="stack"><div class="card">' +
-                clos.map(ligne).join('') + '</div></div>';
-      } else {
-        html += '<div class="stack"><div class="card">' +
-                '<p class="row__sub">Aucune fermeture nocturne annoncée sur ' +
-                'les grands axes. C\'est courant le week-end.</p>' +
-                '</div></div>';
-      }
-
-      if (dure.length) {
-        html += '<p class="note" style="margin:14px 0 10px">' +
-                'Fermé en continu, jour et nuit</p>' +
-                '<div class="stack"><div class="card">' +
-                dure.map(ligne).join('') + '</div></div>';
-      }
+              VTC.esc(VTC.nightTitle(nuit)) + '</p>' +
+              '<div class="stack"><div class="card">' +
+              clos.map(ligne).join('') + '</div></div>';
       body.innerHTML = html;
       return;
     }

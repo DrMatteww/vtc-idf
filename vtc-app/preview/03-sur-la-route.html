@@ -1,5 +1,5 @@
 <!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>03-sur-la-route.html</title></head><body>
-<script>window.__VTC_BASE='../cdn/data/';window.__VTC_GOTO={trafic:'03-sur-la-route.html#trafic'};</script>
+<script>window.__VTC_BASE='../cdn/data/';</script>
 <!-- ===========================================================
      ONGLET 3 — SUR LA ROUTE
      Cinq outils terrain. Tri par distance réelle quand la
@@ -161,21 +161,22 @@
     var html = '';
 
     if (tab === 'trafic') {
-      /* UNE SEULE NUIT, et ce qui dure à part. La liste de la semaine entière
-         ne servait à rien au volant : ce qui compte, c'est la nuit qu'on est
-         en train de faire. La bascule se fait à 6 h, à la première ouverture,
-         sans rien attendre du serveur.
+      /* UNE SEULE NUIT, celle qu'on est en train de faire. La bascule se fait
+         à 6 h, à la première ouverture, sans rien attendre du serveur.
 
-         Le second bloc existe parce que le premier est vide le week-end : du
-         vendredi au dimanche, la DiRIF ne ferme presque rien de 21 h à 6 h,
-         mais elle laisse des bretelles coupées en continu et les chantiers
-         courent toujours. Les mélanger affichait « 21h → 6h » sur une
-         fermeture permanente, ce qui est faux.                            */
+         Et seulement les fermetures NOCTURNES : celles qui durent — bretelle
+         coupée 24h/24, chantier déjà en place — ne sont plus listées, Waze
+         et Google Maps les connaissent et dévient tout seuls. Ce qu'un GPS
+         ne sait pas dire, c'est qu'à 21 h ce soir l'A86 ferme.
+
+         Conséquence assumée : du vendredi au dimanche, la DiRIF ne ferme
+         presque rien de 21 h à 6 h — tout ce qu'elle publie ces soirs-là est
+         du 24h/24. L'écran dira donc souvent « rien de fermé cette nuit » le
+         week-end. C'est juste, et c'est une bonne nouvelle.               */
       var nuit  = VTC.currentNight();
       var clos  = VTC.nightClosures(list, nuit);
-      var dure  = VTC.standingClosures(list);
 
-      if (!clos.length && !dure.length) {
+      if (!clos.length) {
         body.innerHTML = '<div class="empty"><span class="empty__ico">✅</span>' +
           '<p class="empty__title">Rien de fermé cette nuit</p>' +
           '<p>' + VTC.esc(VTC.nightTitle(nuit)) + '. Le réseau est libre, ' +
@@ -196,23 +197,9 @@
       }
 
       html += '<p class="note" style="margin:0 0 10px">' +
-              VTC.esc(VTC.nightTitle(nuit)) + '</p>';
-      if (clos.length) {
-        html += '<div class="stack"><div class="card">' +
-                clos.map(ligne).join('') + '</div></div>';
-      } else {
-        html += '<div class="stack"><div class="card">' +
-                '<p class="row__sub">Aucune fermeture nocturne annoncée sur ' +
-                'les grands axes. C\'est courant le week-end.</p>' +
-                '</div></div>';
-      }
-
-      if (dure.length) {
-        html += '<p class="note" style="margin:14px 0 10px">' +
-                'Fermé en continu, jour et nuit</p>' +
-                '<div class="stack"><div class="card">' +
-                dure.map(ligne).join('') + '</div></div>';
-      }
+              VTC.esc(VTC.nightTitle(nuit)) + '</p>' +
+              '<div class="stack"><div class="card">' +
+              clos.map(ligne).join('') + '</div></div>';
       body.innerHTML = html;
       return;
     }
