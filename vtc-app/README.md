@@ -49,7 +49,7 @@ python3 vtc-app/scripts/build_data.py --only brief --out vtc-app/cdn/data
 ## 2. Comment c'est monté
 
 ```
-  Script (toutes les heures)  →  brief.json sur GitHub Pages  →  les 4 onglets
+  Script (tous les ¼ d'heure)  →  brief.json sur GitHub Pages  →  les 4 onglets
 ```
 
 Les onglets ne font qu'afficher. Toute l'intelligence est dans le script, qui
@@ -269,11 +269,34 @@ soi-même. L'horodatage affiché est celui du fichier, pas celui de la lecture �
 c'est voulu, c'est ce qui permet de voir d'un coup d'œil qu'on regarde des
 données vieilles de trois heures.
 
-En production, la GitHub Action régénère le brief **toutes les heures**
-(`cron: '7 * * * *'`) et l'heure suit toute seule. L'application, elle, ne
+En production, la GitHub Action régénère le brief **tous les quarts d'heure**
+(`cron: '*/15 * * * *'`) et l'heure suit toute seule. L'application, elle, ne
 garde jamais une copie quand le réseau répond : `VTC.load` interroge le serveur
 avec `cache: 'no-store'` et ne se rabat sur la copie locale qu'en cas d'échec —
 l'écran affiche alors « hors ligne ».
+
+**Mais le quart d'heure est une intention, pas une horloge.** Le planificateur
+de GitHub est une file d'attente : mesuré sur ce dépôt le 19 octobre 2026,
+alors que la ligne disait « minute 7 », les exécutions sont parties à 08h40,
+07h48, 06h44, 05h32 et 04h47 — **de 25 à 42 minutes de retard**, et GitHub
+se réserve d'en sauter quand la charge monte. C'est exactement ce qui avait
+donné l'impression que « l'heure ne bouge pas ». Viser le quart d'heure donne
+donc, en pratique, une mise à jour toutes les 15 à 45 minutes au lieu de 60 à
+100.
+
+S'y ajoutent **jusqu'à 10 minutes de cache** côté Pages : les fichiers sont
+servis avec `Cache-Control: max-age=600`, et `cache: 'no-store'` ne concerne
+que le navigateur, pas le réseau de diffusion qui est devant. Descendre sous le
+quart d'heure paierait donc des exécutions pour rafraîchir un fichier que le
+cache garde de toute façon.
+
+Le coût, lui, est nul : le dépôt est **public**, les minutes d'Action y sont
+illimitées, et une exécution dure une trentaine de secondes. Côté sources, 96
+exécutions par jour font 960 appels SNCF et 1 536 appels Ticketmaster, loin
+sous leurs quotas gratuits. Enfin, soyons honnêtes sur le gain : ce qui change
+vraiment d'un quart d'heure à l'autre, ce sont **les retards de trains**. La
+météo est horaire, les fermetures et les événements sont publiés pour la
+journée.
 
 ## 5 bis. Le système de design
 
@@ -636,6 +659,28 @@ l'avait conclu « absent des sources » : c'était faux, c'était la requête.
 Le script fait donc **une requête par salle**. Seize appels au lieu d'un, pour
 un quota de 5 000 par jour : c'est le prix d'un référentiel complet.
 
+Seize appels **par exécution**, en revanche, c'était de la dépense pure :
+quand le brief s'est mis à tourner tous les quarts d'heure, ça faisait 1 536
+appels par jour pour une programmation qui est annoncée des semaines à
+l'avance. Les réponses sont donc gardées sur le disque six heures
+(`TM_CACHE_S`), soit **quatre relevés par jour, 64 appels**. Deux conditions
+pour que ça marche, et la seconde est celle qu'on oublie :
+
+1. **l'URL doit être stable d'une exécution à l'autre.** Elle contenait
+   l'heure courante (`startDateTime`), donc elle changeait à chaque fois et
+   aucun cache ne pouvait servir. Les dates sont maintenant arrondies à la
+   journée. Effet de bord heureux : les spectacles **commencés il y a une
+   heure** reviennent dans la réponse — or c'est exactement eux qui
+   intéressent un chauffeur, puisque leur sortie est à venir. Avec
+   `startDateTime = maintenant`, Ticketmaster les écartait en silence ;
+2. **le dossier `scripts/.cache` doit survivre d'une exécution à l'autre.**
+   `actions/cache` n'enregistre qu'en cas d'échec sur la clé exacte : avec une
+   clé hebdomadaire, tout ce qui était téléchargé après la première exécution
+   de la semaine était **jeté à la fin du job**. La clé change donc toutes les
+   heures : la première exécution de l'heure récupère la précédente, travaille
+   et réenregistre ; les trois suivantes retombent sur la clé exacte. Au
+   passage, ça divise aussi par quatre les visites à Sytadin.
+
 | Avant | Après |
 |---|---|
 | 52 événements, 6 salles | 100+ événements, toutes les salles qui en ont |
@@ -656,6 +701,14 @@ regroupement « un événement par salle et par jour » se fait sur le jour
 échappait au dédoublonnage. Les titres de salon sont coupés au premier tiret :
 après, c'est le type de billet (« — Billet Daté — Entrée… »), pas
 l'événement.
+
+Autre fiche qui n'est pas un événement : **« PASS 3 JOURS - PARIS GRAND SLAM
+2027 »**, à l'Accor Arena, datée d'aujourd'hui 10 h. C'est un abonnement mis
+en vente ce matin ; le tournoi, lui, est en février 2027, et il ne se passe
+rien à l'Accor Arena à 10 h. Ces fiches commencent toutes par le type de
+billet — `TM_BILLET` écarte `pass`, `billet`, `abonnement`, `forfait` en début
+de titre. À ne pas confondre avec la coupure au premier tiret des salons : là,
+le type de billet est **après** le nom ; ici il est **avant**.
 
 #### Plenitude Arena
 

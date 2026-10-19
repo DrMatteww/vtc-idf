@@ -1206,6 +1206,14 @@ TICKETMASTER_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 # veut dire salon.
 TM_SEGMENTS = {"Music": "concert", "Sports": "sport", "Arts & Theatre": "concert"}
 
+# Les fiches qui vendent un droit d'entrée plutôt qu'une soirée : « PASS 3
+# JOURS », « ABONNEMENT SAISON », « FORFAIT WEEK-END ». Ticketmaster les date
+# du jour de leur mise en vente, ce qui faisait apparaître un événement
+# fantôme à une salle où il ne se passait rien. À ne pas confondre avec la
+# coupure au premier tiret appliquée aux salons : là, le type de billet est
+# APRÈS le nom (« Paris Games Week 2026 - Billet Daté ») ; ici il est avant.
+TM_BILLET = re.compile(r"^(pass|billets?|abonnements?|forfaits?)\b", re.I)
+
 
 # Au-delà de trois jours, on ne garde que les très grandes salles. Un match NFL
 # au Stade de France ou un salon à la Porte de Versailles, ça se sait une
@@ -1213,6 +1221,17 @@ TM_SEGMENTS = {"Music": "concert", "Sports": "sport", "Arts & Theatre": "concert
 # places dans dix jours, non — ça ferait une liste qu'on ne lit plus.
 BIG_VENUE_SEATS = 20000
 TM_DAYS_BIG = 10
+
+# Durée de vie du cache de la billetterie. Une programmation ne bouge pas à
+# l'échelle de l'heure : elle est annoncée des semaines à l'avance, et ce qui
+# arrive encore — un report, une annulation — se compte en jours. Six heures
+# donnent quatre relevés par jour, soit soixante-quatre appels au lieu des
+# mille cinq cents que ferait un quart d'heure sans cache. Le cache n'a de
+# sens que si le dossier scripts/.cache survit d'une exécution à l'autre :
+# c'est ce que fait l'étape « Cache des sources lourdes » du workflow, dont la
+# clé change toutes les heures pour que ce qui est écrit ici soit réellement
+# repris par l'exécution suivante.
+TM_CACHE_S = 6 * 3600
 
 
 def fetch_events_ticketmaster(days=3, pages=3, size=100, days_big=TM_DAYS_BIG):
@@ -1241,10 +1260,20 @@ def fetch_events_ticketmaster(days=3, pages=3, size=100, days_big=TM_DAYS_BIG):
     # seize salles, six répondaient, et le Stade de France — interrogé seul,
     # il renvoie bien ses neuf événements dont le match NFL — n'apparaissait
     # jamais. Seize requêtes, c'est le prix d'un référentiel complet.
+    # Les dates de la requête sont ARRONDIES À LA JOURNÉE. Avec l'heure
+    # courante dedans, l'URL changeait à chaque exécution et aucun cache ne
+    # pouvait servir : seize appels toutes les quinze minutes pour une
+    # programmation annoncée des semaines à l'avance. Arrondie, l'URL est la
+    # même toute la journée, et TM_CACHE_S décide du reste. Les événements
+    # déjà passés que ramène le début de journée sont écartés plus bas, par le
+    # même filtre qu'avant.
+    debut_jour = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
     for vid, salle in par_id.items():
         cap = int(salle.get("capacite") or 0)
         jours = max(days, days_big) if cap >= BIG_VENUE_SEATS else days
         horizon = now + timedelta(days=jours)
+        fin_jour = horizon.replace(hour=23, minute=59, second=0, microsecond=0)
         events = []
         for page in range(pages):
             params = [
@@ -1252,12 +1281,13 @@ def fetch_events_ticketmaster(days=3, pages=3, size=100, days_big=TM_DAYS_BIG):
                 ("apikey", key),
                 ("locale", "*"),                 # sans ça, catalogue français vide
                 ("size", size), ("page", page), ("sort", "date,asc"),
-                ("startDateTime", now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                ("endDateTime", horizon.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
+                ("startDateTime", debut_jour.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
+                ("endDateTime", fin_jour.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
             ]
             url = TICKETMASTER_URL + "?" + urllib.parse.urlencode(params)
             try:
-                res = http_json(url, timeout=45)
+                res = cached_json(url, "tm-%s-%s-p%d" % (vid, debut_jour.date(), page),
+                                  TM_CACHE_S)
             except urllib.error.HTTPError as e:
                 log("  ! Ticketmaster : HTTP %s%s" % (e.code,
                     " (clé refusée)" if e.code in (401, 403) else ""))
@@ -1287,6 +1317,15 @@ def fetch_events_ticketmaster(days=3, pages=3, size=100, days_big=TM_DAYS_BIG):
                     break
             kind = TM_SEGMENTS.get(segment) or (salle.get("type_defaut") or "concert")
             titre = (ev.get("name") or "").strip().title()
+
+            # « PASS 3 JOURS - PARIS GRAND SLAM 2027 », Accor Arena, aujourd'hui
+            # 10 h : ce n'est pas un événement, c'est un abonnement mis en vente,
+            # et la date portée est celle de la vente, pas celle du tournoi — qui
+            # a lieu en février 2027. Rien n'arrive à l'Accor Arena ce matin-là.
+            # Ces fiches commencent toutes par le type de billet ; les vraies,
+            # par le nom de l'artiste ou de la compétition.
+            if TM_BILLET.match(titre):
+                continue
             if kind == "salon":
                 # « Paris Games Week 2026 - Billet Daté - Entrée… » : après le
                 # tiret, c'est le type de billet, pas l'événement.
@@ -1545,6 +1584,50 @@ def cached_page(url, max_age_s=6 * 3600):
     with gzip.open(path, "wt", encoding="utf-8") as f:
         f.write(html)
     return html
+
+
+def cached_json(url, nom, max_age_s=6 * 3600):
+    """Comme cached_page, mais pour une API qui répond en JSON — et avec un
+    NOM de fichier donné par l'appelant plutôt que déduit de l'URL : l'URL de
+    la billetterie contient la clé, et une clé n'a rien à faire dans un nom de
+    fichier, encore moins dans un cache qu'on recopie d'une exécution à
+    l'autre. Seule la réponse est écrite sur le disque.
+
+    Sert à ce qui ne bouge pas à l'échelle de l'heure : une programmation de
+    salle est annoncée des semaines à l'avance. Pour la réponse soit servie du
+    cache, il faut que l'URL soit STABLE d'une exécution à l'autre — d'où les
+    dates arrondies à la journée côté Ticketmaster.                        """
+    os.makedirs(CACHE, exist_ok=True)
+    path = os.path.join(CACHE, "json-%s.json.gz" % nom)
+    if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age_s:
+        try:
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            pass                      # cache illisible : on redemande, voilà tout
+    res = http_json(url, timeout=45)
+    try:
+        with gzip.open(path, "wt", encoding="utf-8") as f:
+            json.dump(res, f)
+    except OSError:
+        pass                          # pas de disque : tant pis, on a la réponse
+    _purger_json(3 * 86400)
+    return res
+
+
+def _purger_json(age_s):
+    # Ces noms de fichiers portent une date — une salle, un jour, une page —
+    # donc ils s'accumuleraient. Trois jours suffisent : au-delà, le fichier
+    # ne sera plus jamais demandé.
+    try:
+        for f in os.listdir(CACHE):
+            if not f.startswith("json-"):
+                continue
+            chemin = os.path.join(CACHE, f)
+            if time.time() - os.path.getmtime(chemin) > age_s:
+                os.remove(chemin)
+    except OSError:
+        pass
 
 
 def jour_francais(txt):
