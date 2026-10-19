@@ -37,6 +37,7 @@
 </div>
 
 <div class="filters" id="opts"></div>
+<div id="recherche"></div>
 <div id="body"><div class="stack"><div class="skeleton"></div></div></div>
 <script>window.__VTC_BASE = 'https://drmatteww.github.io/vtc-idf/data/';</script>
 <script src="https://drmatteww.github.io/vtc-idf/app.js"></script>
@@ -55,6 +56,7 @@
   var cache  = {};            // fichiers déjà téléchargés
   var only24 = false;
   var famille = 'all';        // pastille de « Manger » : chaîne, grec, supérette…
+  var quoi    = '';           // ce qui est tapé dans la recherche
   var body   = document.getElementById('body');
 
   /* Chaque sous-section déclare le fichier dont elle a besoin : on ne
@@ -79,6 +81,7 @@
     var b = e.target.closest('.subnav__item');
     if (!b) return;
     tab = b.getAttribute('data-tab');
+    quoi = '';                 // on ne traîne pas sa recherche d'un onglet à l'autre
     Array.prototype.forEach.call(this.querySelectorAll('.subnav__item'), function (i) {
       i.setAttribute('aria-pressed', i === b ? 'true' : 'false');
     });
@@ -128,6 +131,32 @@
     }
   }
 
+  /* Le champ de recherche n'est PAS reconstruit à chaque frappe : on le pose
+     une fois et on ne touche plus qu'à la liste. Le refaire ferait perdre le
+     curseur et le clavier au premier caractère — le genre de détail qui rend
+     un champ inutilisable sur téléphone.                                   */
+  function recherche() {
+    var host = document.getElementById('recherche');
+    if (tab !== 'manger') { host.innerHTML = ''; return; }
+    if (host.firstChild) return;
+
+    host.innerHTML = '<div class="search-wrap"><input class="search" id="q" ' +
+      'type="search" autocomplete="off" autocorrect="off" spellcheck="false" ' +
+      'placeholder="Chercher : mac do, grec, Montreuil…"></div>';
+
+    var champ = document.getElementById('q');
+    var minuteur = null;
+    champ.addEventListener('input', function () {
+      /* Un sixième de seconde d'attente : assez pour ne pas retrier mille six
+         cents lignes à chaque lettre, trop peu pour qu'on le remarque.    */
+      clearTimeout(minuteur);
+      minuteur = setTimeout(function () {
+        quoi = champ.value;
+        paint(cache[TABS[tab].file]);
+      }, 160);
+    });
+  }
+
   function card(inner) { return '<div class="card">' + inner + '</div>'; }
 
   /* Le bouton du GPS choisi dans Infos se range à droite, au niveau du nom et
@@ -151,6 +180,7 @@
 
   function show() {
     options();
+    recherche();
     var cfg = TABS[tab];
 
     if (cache[cfg.file]) { paint(cache[cfg.file]); return; }
@@ -260,34 +290,55 @@
 
     /* Manger : on écarte ce qui est déjà fermé pour la nuit en cours. Les
        fiches saisies à la main n'ont pas d'horaires détaillés, elles restent. */
+    var ferme = false;      // vrai quand on montre des adresses fermées, faute de mieux
     if (tab === 'manger') {
-      /* Deux filtres, dans cet ordre : ce qui est ouvert maintenant, puis la
-         famille choisie. Une fiche sans horaires lisible reste affichée —
-         mieux vaut un lieu à vérifier qu'un écran vide.                    */
-      list = list.filter(function (it) {
-        return (!it.f || VTC.mangerEtat(it)) && VTC.inManger(it, famille);
-      });
+      /* Quand on cherche, on cherche PARTOUT : la recherche l'emporte sur la
+         pastille. Taper « mac do » en ayant « Pizza » coché ne doit pas
+         donner une liste vide pour une raison invisible à l'écran.       */
+      var tout = quoi
+        ? VTC.chercheManger(list, quoi)
+        : list.filter(function (it) { return VTC.inManger(it, famille); });
+
+      list = tout.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
+
+      /* Chercher « mac do » à cinq heures du matin et tomber sur un écran
+         vide est pire que la vérité : on montre alors les mêmes adresses,
+         fermées, en le disant.                                            */
+      if (!list.length && quoi && tout.length) { list = tout; ferme = true; }
     }
 
     /* Position connue : cinq suffisent, et ce sont vraiment les cinq d'à
        côté. Sans position, la liste n'est pas triée par distance — on en
-       montre alors davantage, faute de mieux.                            */
-    var combien = pos ? 5 : 12;
+       montre alors davantage, faute de mieux. En recherche, on en montre dix :
+       on cherche une enseigne précise, pas ce qui est autour.            */
+    var combien = quoi ? 10 : (pos ? 5 : 12);
     var items = withDist(list).slice(0, combien);
 
     if (!items.length) {
-      body.innerHTML = tab === 'manger' && famille !== 'all'
-        ? '<div class="empty"><span class="empty__ico">🍔</span>' +
-          '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
-          '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Station</b>, ' +
-          'qui ferme rarement.</p></div>'
-        : '<div class="empty"><span class="empty__ico">🗒</span>' +
-          '<p class="empty__title">Rien à afficher ici</p>' +
-          '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
+      body.innerHTML = tab === 'manger' && quoi
+        ? '<div class="empty"><span class="empty__ico">🔍</span>' +
+          '<p class="empty__title">Rien trouvé pour « ' + VTC.esc(quoi) + ' »</p>' +
+          '<p>Essaie le nom de l\'enseigne (<b>mac do</b>, <b>kfc</b>), ' +
+          'le genre (<b>grec</b>, <b>pizza</b>, <b>station</b>) ou une ' +
+          'commune.</p></div>'
+        : tab === 'manger' && famille !== 'all'
+          ? '<div class="empty"><span class="empty__ico">🍔</span>' +
+            '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
+            '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Station</b>, ' +
+            'qui ferme rarement.</p></div>'
+          : '<div class="empty"><span class="empty__ico">🗒</span>' +
+            '<p class="empty__title">Rien à afficher ici</p>' +
+            '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
       return;
     }
 
-    html += geoBanner() + '<div class="stack"><div class="card">';
+    html += geoBanner();
+    if (ferme) {
+      html += '<p class="note" style="margin:0 0 10px">Rien d\'ouvert pour ' +
+              '« ' + VTC.esc(quoi) + " » à cette heure-ci. Voici les plus " +
+              'proches, <b>fermées</b>.</p>';
+    }
+    html += '<div class="stack"><div class="card">';
 
     items.forEach(function (it) {
       var sub = '';
@@ -309,7 +360,9 @@
                     : etat.ouvert
                       ? '<span class="tag tag--ok">jusqu\'à ' + VTC.hhmm(etat.fin) + '</span> '
                       : '<span class="tag">ouvre à ' + VTC.hhmm(etat.debut) + '</span> ')
-                : (it.hours ? '<span class="tag">' + VTC.esc(it.hours) + '</span> ' : '')) +
+                : (it.hours
+                    ? '<span class="tag">' + VTC.esc(it.hours) + '</span> '
+                    : it.f ? '<span class="tag">fermé maintenant</span> ' : '')) +
               (it.drive ? '<span class="tag">Drive</span> ' : '') +
               (it.parking ? '<span class="tag tag--ok">Parking</span> ' : '') +
               (it.wc ? '<span class="tag tag--ok">Toilettes</span> ' : '') +

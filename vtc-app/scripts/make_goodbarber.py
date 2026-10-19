@@ -75,8 +75,13 @@ def main():
         # dans GoodBarber irait chercher un fichier qui n'existe pas.
         if not (CDN_CSS.search(html) and CDN_JS.search(html)):
             raise SystemExit("! appel CDN introuvable dans %s" % nom)
-        html = CDN_CSS.sub("\n<style>\n" + css + "\n</style>", html, count=1)
-        html = CDN_JS.sub("\n<script>\n" + js + "\n</script>", html, count=1)
+        # Le remplacement passe par une fonction, jamais par une chaîne : dans
+        # une chaîne, re.sub interprète les antislashs, et le jour où app.js a
+        # contenu « \\u0300 » — la plage des accents, pour la recherche — la
+        # génération s'est arrêtée sur « bad escape \\u ». Le contenu d'un
+        # fichier n'est pas un gabarit : on le pose tel quel.
+        html = CDN_CSS.sub(lambda m: "\n<style>\n" + css + "\n</style>", html, count=1)
+        html = CDN_JS.sub(lambda m: "\n<script>\n" + js + "\n</script>", html, count=1)
         bloc = (ENTETE % (titre, BASE_DONNEES)) + html
         chemin = os.path.join(OUT, nom)
         open(chemin, "w", encoding="utf-8").write(bloc)
@@ -143,6 +148,7 @@ profite alors aux quatre sections sans rien recoller.
         if not CDN_JS.search(html):
             raise SystemExit("! appel à app.js introuvable dans %s" % nom)
         html = CDN_JS.sub(
+            lambda m:
             "\n<script>window.__VTC_BASE = 'https://TON-COMPTE.github.io/vtc-idf/data/';</script>"
             "\n<script src=\"https://TON-COMPTE.github.io/vtc-idf/app.js\"></script>",
             html, count=1)

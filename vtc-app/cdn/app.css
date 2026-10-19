@@ -567,3 +567,35 @@ a { color: inherit; text-decoration: none; }
   color: var(--text-dim);
   font-weight: 600;
 }
+
+/* ---------- Le champ de recherche ---------------------------------------
+   Une seule ligne, pleine largeur, posée entre les pastilles et la liste.
+   La hauteur est celle d'une cible tactile confortable (--tap) : on tape
+   dedans au feu rouge, pas assis à un bureau. */
+.search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--tap);
+  margin: 0 0 2px;
+  padding: 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;            /* en dessous de 16, iOS zoome sur le champ */
+  font-weight: 500;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search::placeholder { color: var(--text-mute); font-weight: 400; }
+.search:focus {
+  outline: none;
+  border-color: var(--text-dim);
+}
+/* La croix native de Safari est invisible sur fond sombre : on l'éclaircit
+   plutôt que de la cacher — c'est elle qui sert à revenir à la liste. */
+.search::-webkit-search-cancel-button { filter: invert(1) opacity(.5); }
+
+.search-wrap { padding: 0 var(--pad) 10px; }

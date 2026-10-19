@@ -1076,6 +1076,35 @@ OpenStreetMap — Brioche Dorée, Pret A Manger au terminal 2E — se retrouvent
 trois heures du matin, savoir qu'il y a quelque chose d'ouvert dans le
 terminal est exactement ce qu'il veut.
 
+#### Chercher une enseigne : « mac do » doit trouver McDonald's
+
+Les pastilles répondent à « qu'est-ce qu'il y a autour de moi ». Elles ne
+répondent pas à « je veux un McDo ». D'où un champ de recherche, qui porte sur
+**toute la base** — les 1 655 adresses — et non sur les cinq lignes affichées :
+le tri par distance fait le reste, le premier résultat est le plus proche même
+s'il est à douze kilomètres.
+
+Trois choses le rendent utilisable au volant :
+
+- **on écrase accents, majuscules, apostrophes et espaces** avant de comparer.
+  `velizy` trouve Vélizy, `mcdo` trouve McDonald's ;
+- **une table de raccourcis** traduit ce qu'on dit en ce qui est écrit dans la
+  base. `mac do`, `macdo`, `mcdo` → McDonald's (226 adresses) ; `bk` → Burger
+  King (46) ; `dominos` → Domino's ;
+- **certains mots choisissent une famille plutôt qu'un nom.** `grec`, `kebab`
+  et `tacos` ne figurent dans presque aucune enseigne, mais c'est ce qu'on
+  tape : ils ramènent les 130 sandwicheries. Pareil pour `pizza`, `station`,
+  `essence`, `supérette`, `courses`.
+
+Plusieurs mots se cumulent : `mcdo paris` donne 68 résultats. Et la recherche
+**l'emporte sur la pastille** — chercher « mac do » avec *Pizza* coché ne doit
+pas donner une liste vide pour une raison invisible à l'écran.
+
+Dernier détail, celui qui évite la mauvaise surprise : si rien n'est **ouvert**
+à cette heure-ci, l'écran ne reste pas vide. Il montre les mêmes adresses avec
+l'étiquette « fermé maintenant » et le dit en une ligne — vérifié à 5 h du
+matin sur « pizza ».
+
 #### Ajouter ses propres adresses
 
 `manger.csv` sert à ça, et c'est le contenu qui n'existe nulle part ailleurs :

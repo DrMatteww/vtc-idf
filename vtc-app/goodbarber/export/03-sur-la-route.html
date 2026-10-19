@@ -588,6 +588,38 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
 }
 
+/* ---------- Le champ de recherche ---------------------------------------
+   Une seule ligne, pleine largeur, posée entre les pastilles et la liste.
+   La hauteur est celle d'une cible tactile confortable (--tap) : on tape
+   dedans au feu rouge, pas assis à un bureau. */
+.search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--tap);
+  margin: 0 0 2px;
+  padding: 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;            /* en dessous de 16, iOS zoome sur le champ */
+  font-weight: 500;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search::placeholder { color: var(--text-mute); font-weight: 400; }
+.search:focus {
+  outline: none;
+  border-color: var(--text-dim);
+}
+/* La croix native de Safari est invisible sur fond sombre : on l'éclaircit
+   plutôt que de la cacher — c'est elle qui sert à revenir à la liste. */
+.search::-webkit-search-cancel-button { filter: invert(1) opacity(.5); }
+
+.search-wrap { padding: 0 var(--pad) 10px; }
+
 </style>
 <style>
   body { background:#0A0A0B; color:#F4F4F5; margin:0;
@@ -610,6 +642,7 @@ a { color: inherit; text-decoration: none; }
 </div>
 
 <div class="filters" id="opts"></div>
+<div id="recherche"></div>
 <div id="body"><div class="stack"><div class="skeleton"></div></div></div>
 <script>
 /* ==========================================================================
@@ -1145,6 +1178,74 @@ var VTC = (function () {
     return (it.t || 'autre') === code;
   }
 
+  /* ---- Chercher un lieu par son nom ou sa ville -------------------------
+     « Je veux un McDo » n'est pas la même question que « qu'est-ce qu'il y a
+     autour de moi ». La recherche porte donc sur TOUTE la base, les 1 655
+     adresses, et le tri par distance fait le reste : le premier résultat est
+     le plus proche, même s'il est à douze kilomètres.
+
+     Personne n'écrit « McDonald's » au volant. On tape « mac do », parfois
+     « macdo », et la recherche doit trouver. D'où deux choses : on écrase les
+     accents, les majuscules et les espaces avant de comparer, et une petite
+     table de raccourcis traduit ce qu'on dit en ce qui est écrit dans la base.
+     Elle est courte exprès — elle couvre ce qu'un chauffeur tape vraiment, et
+     chaque ligne a été vérifiée contre les noms réels des fiches.          */
+  var ALIAS = {
+    macdo: 'mcdonald', macdos: 'mcdonald', macdonald: 'mcdonald',
+    macdonalds: 'mcdonald', mcdo: 'mcdonald', mcdonalds: 'mcdonald',
+    bk: 'burger king', burgerking: 'burger king',
+    dominos: 'domino', otacos: "o'tacos", starbuck: 'starbucks',
+    /* Un mot qui commence par @ ne cherche pas un nom : il choisit une
+       famille. « grec » ne figure dans presque aucune enseigne, mais c'est
+       le mot qu'on emploie — il doit ramener les 130 sandwicheries.      */
+    grec: '@sandwich', grecs: '@sandwich', kebab: '@sandwich',
+    kebabs: '@sandwich', tacos: '@sandwich', sandwich: '@sandwich',
+    sandwicherie: '@sandwich', turc: '@sandwich', libanais: '@sandwich',
+    pizza: '@pizza', pizzas: '@pizza', pizzeria: '@pizza',
+    superette: '@super', supermarche: '@super', supermarches: '@super',
+    epicerie: '@super', courses: '@super', alimentation: '@super',
+    station: '@station', stations: '@station', essence: '@station',
+    carburant: '@station', pompe: '@station',
+    chaine: '@chaine', chaines: '@chaine', fastfood: '@chaine'
+  };
+
+  function sansAccent(s) {
+    s = String(s || '').toLowerCase();
+    /* normalize() manque sur de très vieux navigateurs : on retombe alors sur
+       une comparaison sans accents, ce qui dégrade la recherche sans la
+       casser. Mieux vaut « Vélizy » introuvable en tapant « velizy » qu'un
+       écran blanc.                                                         */
+    if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return s.replace(/['’`.\-]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function chercheManger(list, q) {
+    var t = sansAccent(q);
+    if (!t) return list;
+
+    /* « mac do » en deux mots, « macdo » en un : on essaie d'abord la forme
+       recollée, sinon mot à mot.                                          */
+    var mots = ALIAS[t.replace(/ /g, '')]
+      ? [ALIAS[t.replace(/ /g, '')]]
+      : t.split(' ').map(function (m) { return ALIAS[m] || m; });
+
+    var famille = null, termes = [];
+    mots.forEach(function (m) {
+      if (m.charAt(0) === '@') famille = m.slice(1);
+      else if (m) termes.push(sansAccent(m));
+    });
+
+    return (list || []).filter(function (it) {
+      if (famille && (it.t || 'autre') !== famille) return false;
+      if (!termes.length) return true;
+      var foin = sansAccent((it.name || '') + ' ' + (it.address || ''));
+      for (var i = 0; i < termes.length; i++) {
+        if (foin.indexOf(termes[i]) === -1) return false;
+      }
+      return true;
+    });
+  }
+
   /* ---- Aller d'un onglet à l'autre --------------------------------------
      GoodBarber donne un lien interne par section ; la prévisualisation, elle,
      vit dans une iframe et prévient sa coquille. Un seul endroit à toucher
@@ -1463,6 +1564,7 @@ var VTC = (function () {
     timeCell: timeCell, isSortie: isSortie, ico: ico,
     meteoNow: meteoNow, meteoHtml: meteoHtml,
     mangerEtat: mangerEtat, MANGER: MANGER, inManger: inManger,
+    chercheManger: chercheManger, sansAccent: sansAccent,
     ECHEANCES: ECHEANCES, echeances: echeances,
     setEcheance: setEcheance, echeanceUrgente: echeanceUrgente,
     joursAvant: joursAvant,
@@ -1492,6 +1594,7 @@ var VTC = (function () {
   var cache  = {};            // fichiers déjà téléchargés
   var only24 = false;
   var famille = 'all';        // pastille de « Manger » : chaîne, grec, supérette…
+  var quoi    = '';           // ce qui est tapé dans la recherche
   var body   = document.getElementById('body');
 
   /* Chaque sous-section déclare le fichier dont elle a besoin : on ne
@@ -1516,6 +1619,7 @@ var VTC = (function () {
     var b = e.target.closest('.subnav__item');
     if (!b) return;
     tab = b.getAttribute('data-tab');
+    quoi = '';                 // on ne traîne pas sa recherche d'un onglet à l'autre
     Array.prototype.forEach.call(this.querySelectorAll('.subnav__item'), function (i) {
       i.setAttribute('aria-pressed', i === b ? 'true' : 'false');
     });
@@ -1565,6 +1669,32 @@ var VTC = (function () {
     }
   }
 
+  /* Le champ de recherche n'est PAS reconstruit à chaque frappe : on le pose
+     une fois et on ne touche plus qu'à la liste. Le refaire ferait perdre le
+     curseur et le clavier au premier caractère — le genre de détail qui rend
+     un champ inutilisable sur téléphone.                                   */
+  function recherche() {
+    var host = document.getElementById('recherche');
+    if (tab !== 'manger') { host.innerHTML = ''; return; }
+    if (host.firstChild) return;
+
+    host.innerHTML = '<div class="search-wrap"><input class="search" id="q" ' +
+      'type="search" autocomplete="off" autocorrect="off" spellcheck="false" ' +
+      'placeholder="Chercher : mac do, grec, Montreuil…"></div>';
+
+    var champ = document.getElementById('q');
+    var minuteur = null;
+    champ.addEventListener('input', function () {
+      /* Un sixième de seconde d'attente : assez pour ne pas retrier mille six
+         cents lignes à chaque lettre, trop peu pour qu'on le remarque.    */
+      clearTimeout(minuteur);
+      minuteur = setTimeout(function () {
+        quoi = champ.value;
+        paint(cache[TABS[tab].file]);
+      }, 160);
+    });
+  }
+
   function card(inner) { return '<div class="card">' + inner + '</div>'; }
 
   /* Le bouton du GPS choisi dans Infos se range à droite, au niveau du nom et
@@ -1588,6 +1718,7 @@ var VTC = (function () {
 
   function show() {
     options();
+    recherche();
     var cfg = TABS[tab];
 
     if (cache[cfg.file]) { paint(cache[cfg.file]); return; }
@@ -1697,34 +1828,55 @@ var VTC = (function () {
 
     /* Manger : on écarte ce qui est déjà fermé pour la nuit en cours. Les
        fiches saisies à la main n'ont pas d'horaires détaillés, elles restent. */
+    var ferme = false;      // vrai quand on montre des adresses fermées, faute de mieux
     if (tab === 'manger') {
-      /* Deux filtres, dans cet ordre : ce qui est ouvert maintenant, puis la
-         famille choisie. Une fiche sans horaires lisible reste affichée —
-         mieux vaut un lieu à vérifier qu'un écran vide.                    */
-      list = list.filter(function (it) {
-        return (!it.f || VTC.mangerEtat(it)) && VTC.inManger(it, famille);
-      });
+      /* Quand on cherche, on cherche PARTOUT : la recherche l'emporte sur la
+         pastille. Taper « mac do » en ayant « Pizza » coché ne doit pas
+         donner une liste vide pour une raison invisible à l'écran.       */
+      var tout = quoi
+        ? VTC.chercheManger(list, quoi)
+        : list.filter(function (it) { return VTC.inManger(it, famille); });
+
+      list = tout.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
+
+      /* Chercher « mac do » à cinq heures du matin et tomber sur un écran
+         vide est pire que la vérité : on montre alors les mêmes adresses,
+         fermées, en le disant.                                            */
+      if (!list.length && quoi && tout.length) { list = tout; ferme = true; }
     }
 
     /* Position connue : cinq suffisent, et ce sont vraiment les cinq d'à
        côté. Sans position, la liste n'est pas triée par distance — on en
-       montre alors davantage, faute de mieux.                            */
-    var combien = pos ? 5 : 12;
+       montre alors davantage, faute de mieux. En recherche, on en montre dix :
+       on cherche une enseigne précise, pas ce qui est autour.            */
+    var combien = quoi ? 10 : (pos ? 5 : 12);
     var items = withDist(list).slice(0, combien);
 
     if (!items.length) {
-      body.innerHTML = tab === 'manger' && famille !== 'all'
-        ? '<div class="empty"><span class="empty__ico">🍔</span>' +
-          '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
-          '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Station</b>, ' +
-          'qui ferme rarement.</p></div>'
-        : '<div class="empty"><span class="empty__ico">🗒</span>' +
-          '<p class="empty__title">Rien à afficher ici</p>' +
-          '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
+      body.innerHTML = tab === 'manger' && quoi
+        ? '<div class="empty"><span class="empty__ico">🔍</span>' +
+          '<p class="empty__title">Rien trouvé pour « ' + VTC.esc(quoi) + ' »</p>' +
+          '<p>Essaie le nom de l\'enseigne (<b>mac do</b>, <b>kfc</b>), ' +
+          'le genre (<b>grec</b>, <b>pizza</b>, <b>station</b>) ou une ' +
+          'commune.</p></div>'
+        : tab === 'manger' && famille !== 'all'
+          ? '<div class="empty"><span class="empty__ico">🍔</span>' +
+            '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
+            '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Station</b>, ' +
+            'qui ferme rarement.</p></div>'
+          : '<div class="empty"><span class="empty__ico">🗒</span>' +
+            '<p class="empty__title">Rien à afficher ici</p>' +
+            '<p>Cette liste se remplit au fil des relevés terrain.</p></div>';
       return;
     }
 
-    html += geoBanner() + '<div class="stack"><div class="card">';
+    html += geoBanner();
+    if (ferme) {
+      html += '<p class="note" style="margin:0 0 10px">Rien d\'ouvert pour ' +
+              '« ' + VTC.esc(quoi) + " » à cette heure-ci. Voici les plus " +
+              'proches, <b>fermées</b>.</p>';
+    }
+    html += '<div class="stack"><div class="card">';
 
     items.forEach(function (it) {
       var sub = '';
@@ -1746,7 +1898,9 @@ var VTC = (function () {
                     : etat.ouvert
                       ? '<span class="tag tag--ok">jusqu\'à ' + VTC.hhmm(etat.fin) + '</span> '
                       : '<span class="tag">ouvre à ' + VTC.hhmm(etat.debut) + '</span> ')
-                : (it.hours ? '<span class="tag">' + VTC.esc(it.hours) + '</span> ' : '')) +
+                : (it.hours
+                    ? '<span class="tag">' + VTC.esc(it.hours) + '</span> '
+                    : it.f ? '<span class="tag">fermé maintenant</span> ' : '')) +
               (it.drive ? '<span class="tag">Drive</span> ' : '') +
               (it.parking ? '<span class="tag tag--ok">Parking</span> ' : '') +
               (it.wc ? '<span class="tag tag--ok">Toilettes</span> ' : '') +
