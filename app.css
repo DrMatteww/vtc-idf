@@ -599,3 +599,22 @@ a { color: inherit; text-decoration: none; }
 .search::-webkit-search-cancel-button { filter: invert(1) opacity(.5); }
 
 .search-wrap { padding: 0 var(--pad) 10px; }
+
+/* ---------- L'étoile des favoris ----------------------------------------
+   Posée à gauche du bouton GPS, à la même hauteur. Grise tant qu'elle est
+   vide : un écran de douze lignes jaunes ne désignerait plus rien. */
+.star {
+  flex: none;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-mute);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.star--on { color: #F2C14E; }
+.star:focus-visible { outline: 1px solid var(--text-dim); outline-offset: 2px; }
