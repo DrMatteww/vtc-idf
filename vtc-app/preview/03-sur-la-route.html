@@ -55,9 +55,10 @@
   var filtre  = { wc: 'all', manger: 'all', astuces: 'all' };
   var quoi    = '';           // ce qui est tapé dans la recherche
 
+  var body    = document.getElementById('body');
+
   function vue() { return filtre[tab] || 'all'; }
   function enFavoris() { return vue() === 'fav'; }
-  var body   = document.getElementById('body');
 
   /* Chaque sous-section déclare le fichier dont elle a besoin : on ne
      télécharge jamais les 6 000 bornes pour afficher les toilettes.      */
