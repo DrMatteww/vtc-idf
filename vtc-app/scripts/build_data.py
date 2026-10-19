@@ -37,6 +37,7 @@ import os
 import re
 import sys
 from html.parser import HTMLParser
+import unicodedata
 import urllib.error
 import urllib.parse
 import time
@@ -2288,7 +2289,13 @@ def fetch_toilets():
             horaire = horaire_credible((r.get("horaire") or "").strip())
             arr = (r.get("arrondissement") or "").strip()
             out.append({
-                "id": "wc-%d" % len(out),
+                # L'identifiant est construit sur les COORDONNÉES, jamais sur
+                # le rang dans la liste : il sert aux favoris, qui vivent sur
+                # le téléphone et doivent survivre à la reconstruction
+                # hebdomadaire. Une sanisette retirée du jeu de données
+                # décalait tous les rangs suivants — et chaque favori
+                # désignait alors la sanisette d'à côté.
+                "id": "wc%.5f_%.5f" % (pt["lat"], pt["lon"]),
                 "name": (r.get("adresse") or "Sanisette").strip().title(),
                 "address": "Paris %s" % (arr[-2:].lstrip("0") + "e" if arr.startswith("75") else arr),
                 "dept": "75",
@@ -2988,6 +2995,13 @@ def parse_toilets_osm(res, communes, adresses=None):
     return out
 
 
+def _cle(txt):
+    """« Chez Momo » → « chez-momo ». Sert d'identifiant stable."""
+    t = unicodedata.normalize("NFD", (txt or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", t)).strip("-")[:40]
+
+
 def manual_places(name, kind):
     """Fiches relevées sur le terrain. C'est le contenu que Google Maps n'a
     pas — parking, toilettes, tranche de prix — et donc celui qui a de la
@@ -3000,7 +3014,10 @@ def manual_places(name, kind):
             log("  ! coordonnées illisibles : %r" % r.get("nom"))
             continue
         item = {
-            "id": "%s-%d" % (kind, i),
+            # Même raison que pour les sanisettes : un identifiant assis sur
+            # le NOM, pas sur la ligne du fichier. Ajouter une adresse en
+            # milieu de CSV ne doit pas déplacer les favoris du chauffeur.
+            "id": "%s-%s" % (kind, _cle(r["nom"]) or i),
             "name": r["nom"].strip(),
             "address": (r.get("adresse") or "").strip(),
             "dept": (r.get("dept") or "").strip(),

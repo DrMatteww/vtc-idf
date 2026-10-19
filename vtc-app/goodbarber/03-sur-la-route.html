@@ -47,9 +47,14 @@
   var pos    = null;          // position du chauffeur, si accordée
   var geoErr = null;
   var cache  = {};            // fichiers déjà téléchargés
-  var only24 = false;
-  var famille = 'all';        // pastille de « Manger » : chaîne, grec, supérette…
+  /* Une pastille par sous-section, mémorisée le temps de la session. Les
+     trois listes ont la leur, parce que « Favoris » existe partout mais que
+     « Ouvert 24h » ne veut rien dire pour une astuce.                     */
+  var filtre  = { wc: 'all', manger: 'all', astuces: 'all' };
   var quoi    = '';           // ce qui est tapé dans la recherche
+
+  function vue() { return filtre[tab] || 'all'; }
+  function enFavoris() { return vue() === 'fav'; }
   var body   = document.getElementById('body');
 
   /* Chaque sous-section déclare le fichier dont elle a besoin : on ne
@@ -106,22 +111,25 @@
     return '<p class="note">Position indisponible : liste non triée par distance.</p>';
   }
 
+  var CHIPS = {
+    wc: [{ code: 'all', label: 'Toutes' },
+         { code: 'fav', label: '★ Favoris' },
+         { code: '24',  label: 'Ouvert 24h' }],
+    astuces: [{ code: 'all', label: 'Toutes' },
+              { code: 'fav', label: '★ Favoris' }]
+  };
+
+  /* Le choix n'est pas mémorisé d'une ouverture à l'autre : on a faim de
+     choses différentes selon les soirs, et retrouver « Pizza » coché trois
+     jours plus tard n'aide personne.                                      */
   function options() {
     var host = document.getElementById('opts');
-    if (tab === 'wc') {
-      VTC.renderChips(host,
-        [{ code: 'all', label: 'Toutes' }, { code: '24', label: 'Ouvert 24h' }],
-        only24 ? '24' : 'all',
-        function (c) { only24 = (c === '24'); show(); });
-    } else if (tab === 'manger') {
-      /* Le choix n'est pas mémorisé d'une ouverture à l'autre : on a faim de
-         choses différentes selon les soirs, et retrouver « Pizza » coché trois
-         jours plus tard n'aide personne.                                   */
-      VTC.renderChips(host, VTC.MANGER, famille,
-        function (c) { famille = c; show(); });
-    } else {
-      host.innerHTML = '';
-    }
+    var liste = tab === 'manger' ? VTC.MANGER : CHIPS[tab];
+    if (!liste) { host.innerHTML = ''; return; }
+    VTC.renderChips(host, liste, vue(), function (c) {
+      filtre[tab] = c;
+      show();
+    });
   }
 
   /* Le champ de recherche n'est PAS reconstruit à chaque frappe : on le pose
@@ -166,9 +174,7 @@
           ? '<span class="dist">' + VTC.fmtDist(it._d) +
             '<span class="dist__unit">d\'ici</span></span>'
           : '') +
-        /* L'étoile n'existe que là où elle sert : on garde en favori un
-           endroit où manger, pas une sanisette.                          */
-        (tab === 'manger' ? VTC.etoile(it.id) : '') +
+        VTC.etoile(it.id) +
         VTC.navButtons(it.lat, it.lon) +
       '</div>' +
     '</div>';
@@ -184,7 +190,9 @@
     if (!b) return;
     e.preventDefault();
     var on = VTC.basculeFavori(b.getAttribute('data-fav'));
-    if (famille === 'fav') { paint(cache[TABS[tab].file]); return; }
+    /* Dans la liste des favoris, retirer une ligne doit la faire
+       disparaître ; ailleurs, on ne redessine que l'étoile touchée.     */
+    if (enFavoris()) { paint(cache[TABS[tab].file]); return; }
     b.className = 'star' + (on ? ' star--on' : '');
     b.textContent = on ? '★' : '☆';
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -263,13 +271,20 @@
       /* Le carnet du chauffeur. Une astuce n'a pas forcément de lieu : celles
          qui en ont un se classent par distance et portent leur bouton GPS,
          les autres se lisent, c'est tout.                                  */
+      if (enFavoris()) {
+        list = list.filter(function (a) { return VTC.estFavori(a.id); });
+      }
       var avec = withDist(list.filter(function (a) { return a.lat != null; }));
       var sans = list.filter(function (a) { return a.lat == null; });
       if (!avec.length && !sans.length) {
-        body.innerHTML = '<div class="empty"><span class="empty__ico">\uD83D\uDCA1</span>' +
-          '<p class="empty__title">Pas encore d\'astuce</p>' +
-          '<p>Ce carnet se remplit au fil du terrain : lieux o\u00f9 patienter, ' +
-          'heures creuses, entr\u00e9es \u00e0 \u00e9viter.</p></div>';
+        body.innerHTML = enFavoris()
+          ? '<div class="empty"><span class="empty__ico">☆</span>' +
+            '<p class="empty__title">Pas encore de favori</p>' +
+            '<p>Touche l\'étoile sur une astuce pour la garder ici.</p></div>'
+          : '<div class="empty"><span class="empty__ico">\uD83D\uDCA1</span>' +
+            '<p class="empty__title">Pas encore d\'astuce</p>' +
+            '<p>Ce carnet se remplit au fil du terrain : lieux o\u00f9 patienter, ' +
+            'heures creuses, entr\u00e9es \u00e0 \u00e9viter.</p></div>';
         return;
       }
       html += geoBanner() + '<div class="stack"><div class="card">';
@@ -279,15 +294,17 @@
             '<p class="row__title">' + VTC.esc(a.name) + VTC.deptTag(a.dept) + '</p>' +
             '<p class="row__sub">' + VTC.esc(a.note || '') + '</p>' +
           '</div>' +
-          (a.lat != null
-            ? '<div class="row__right">' +
-                (a._d !== undefined
-                  ? '<span class="dist">' + VTC.fmtDist(a._d) +
-                    '<span class="dist__unit">d\'ici</span></span>'
-                  : '') +
-                VTC.navButtons(a.lat, a.lon) +
-              '</div>'
-            : '') +
+          /* Une astuce sans lieu garde quand même son étoile : « éviter la
+             porte de Bagnolet après 18 h » se range aussi bien qu'une
+             adresse.                                                     */
+          '<div class="row__right">' +
+            (a._d !== undefined
+              ? '<span class="dist">' + VTC.fmtDist(a._d) +
+                '<span class="dist__unit">d\'ici</span></span>'
+              : '') +
+            VTC.etoile(a.id) +
+            (a.lat != null ? VTC.navButtons(a.lat, a.lon) : '') +
+          '</div>' +
         '</div>';
       });
       html += '</div></div>';
@@ -297,8 +314,9 @@
       return;
     }
 
-    if (tab === 'wc' && only24) {
-      list = list.filter(function (it) { return it.h24; });
+    if (tab === 'wc') {
+      if (vue() === '24')  list = list.filter(function (it) { return it.h24; });
+      if (enFavoris())     list = list.filter(function (it) { return VTC.estFavori(it.id); });
     }
 
     /* Manger : on écarte ce qui est déjà fermé pour la nuit en cours. Les
@@ -310,13 +328,13 @@
          donner une liste vide pour une raison invisible à l'écran.       */
       var tout = quoi
         ? VTC.chercheManger(list, quoi)
-        : list.filter(function (it) { return VTC.inManger(it, famille); });
+        : list.filter(function (it) { return VTC.inManger(it, vue()); });
 
       /* Les favoris échappent au filtre « encore ouvert » : c'est une liste
          qu'on a constituée soi-même, on veut la voir en entier, avec les
          horaires de chacun. Partout ailleurs, on ne montre que ce qui est
          ouvert — sinon l'onglet ne sert plus à rien à deux heures du matin. */
-      list = famille === 'fav' && !quoi
+      list = enFavoris() && !quoi
         ? tout
         : tout.filter(function (it) { return !it.f || VTC.mangerEtat(it); });
 
@@ -330,23 +348,24 @@
        côté. Sans position, la liste n'est pas triée par distance — on en
        montre alors davantage, faute de mieux. En recherche, on en montre dix :
        on cherche une enseigne précise, pas ce qui est autour.            */
-    var combien = (tab === 'manger' && famille === 'fav') ? 50
-      : quoi ? 10 : (pos ? 5 : 12);
+    /* Une liste de favoris se montre en entier : c'est la sienne, il n'y a
+       pas de raison d'en cacher la moitié.                               */
+    var combien = enFavoris() ? 50 : quoi ? 10 : (pos ? 5 : 12);
     var items = withDist(list).slice(0, combien);
 
     if (!items.length) {
-      body.innerHTML = tab === 'manger' && quoi
+      body.innerHTML = tab === 'manger' && quoi && !enFavoris()
         ? '<div class="empty"><span class="empty__ico">🔍</span>' +
           '<p class="empty__title">Rien trouvé pour « ' + VTC.esc(quoi) + ' »</p>' +
           '<p>Essaie le nom de l\'enseigne (<b>mac do</b>, <b>kfc</b>), ' +
           'le genre (<b>grec</b>, <b>pizza</b>, <b>station</b>) ou une ' +
           'commune.</p></div>'
-        : tab === 'manger' && famille === 'fav'
+        : enFavoris()
           ? '<div class="empty"><span class="empty__ico">☆</span>' +
             '<p class="empty__title">Pas encore de favori</p>' +
             '<p>Touche l\'étoile sur une ligne pour garder une adresse ici. ' +
             'Elle reste sur ton téléphone.</p></div>'
-        : tab === 'manger' && famille !== 'all'
+        : tab === 'manger' && vue() !== 'all'
           ? '<div class="empty"><span class="empty__ico">🍔</span>' +
             '<p class="empty__title">Rien d\'ouvert dans cette famille</p>' +
             '<p>À cette heure-ci, essaie <b>Tout</b> — ou <b>Grec · ' +
@@ -412,7 +431,9 @@
       'celui de la <b>boutique</b>, pas des pompes. Le reste vient ' +
       'd\'OpenStreetMap, renseigné par des contributeurs : vérifie avant de ' +
       'faire dix kilomètres.</p>';
-    if (tab === 'wc')      html += '<p class="note">' +
+    /* La note décrit la liste qu'on a sous les yeux : en favoris, « les 12
+       premières » serait faux, et on sait déjà d'où elles viennent.     */
+    if (tab === 'wc' && !enFavoris()) html += '<p class="note">' +
       (pos ? 'Les 5 plus proches de toi. ' : 'Les 12 premières, faute de position. ') +
       'Dans Paris : sanisettes de la Ville. En banlieue : OpenStreetMap, ' +
       'alimenté par des contributeurs — les horaires y manquent souvent, ' +

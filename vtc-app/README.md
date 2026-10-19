@@ -1218,11 +1218,24 @@ familles. Trois décisions :
   en entier, avec l'horaire de chacun. Les adresses fermées y portent
   « fermé maintenant ».
 
+L'étoile est sur **les trois listes** — Manger, Toilettes, Astuces — et chacune
+a sa pastille *★ Favoris*. Une astuce sans lieu garde la sienne : « éviter la
+porte de Bagnolet après 18 h » se range aussi bien qu'une adresse.
+
 Côté code, un seul écouteur de clic posé sur le conteneur, jamais un par
 étoile : la liste est réécrite à chaque filtre, et rattacher douze écouteurs à
 chaque fois finit toujours par en oublier un. L'étoile touchée est redessinée
 sur place — sauf dans la liste des favoris, où retirer une ligne doit la faire
 disparaître.
+
+**Les identifiants ont dû changer pour ça.** Les sanisettes de Paris portaient
+`wc-0`, `wc-1`… c'est-à-dire leur **rang dans le fichier**. Une sanisette
+retirée du jeu de données décalait tous les suivants, et chaque favori aurait
+désigné la sanisette d'à côté — silencieusement, une semaine plus tard, à la
+reconstruction. Elles portent maintenant leurs coordonnées
+(`wc48.85525_2.36050`), et les fiches saisies à la main portent un identifiant
+tiré de leur nom (`manger-chez-momo`) plutôt que leur ligne de CSV. Ajouter une
+adresse au milieu du fichier ne déplace plus rien.
 
 #### Ajouter ses propres adresses
 
