@@ -1,12 +1,32 @@
 # Régénère les données de l'appli VTC et les publie sur GitHub Pages.
-# Le brief tourne toutes les heures ; les lieux, une fois par semaine,
+# Le brief tourne tous les quarts d'heure ; les lieux, une fois par semaine,
 # parce qu'ils ne bougent quasiment pas.
+#
+# « Tous les quarts d'heure » est une intention, pas une promesse : le
+# planificateur de GitHub est une file d'attente, pas une horloge. Mesuré sur
+# ce dépôt même, alors que la ligne disait « minute 7 », les exécutions sont
+# parties à 08h40, 07h48, 06h44, 05h32 et 04h47 — entre 25 et 42 minutes de
+# retard, et GitHub se réserve le droit d'en sauter quand la charge monte.
+# Viser le quart d'heure donne donc une mise à jour toutes les 15 à 45 minutes
+# en pratique, au lieu de 60 à 100. À quoi s'ajoutent jusqu'à 10 minutes de
+# cache côté Pages (Cache-Control: max-age=600) : inutile de descendre plus
+# bas, on paierait des exécutions pour rafraîchir un fichier que le réseau de
+# diffusion garde quand même.
+#
+# Ça ne coûte rien : le dépôt est public, les minutes d'Action y sont
+# illimitées, et une exécution dure une trentaine de secondes. Côté sources,
+# 96 exécutions par jour font 960 appels SNCF et 64 appels Ticketmaster — la
+# billetterie étant gardée six heures en cache, voir TM_CACHE_S.
+#
+# Ce qui change vraiment d'un quart d'heure à l'autre : les retards de trains.
+# La météo est horaire, les fermetures et les événements sont publiés pour la
+# journée. L'heure de mise à jour, elle, bougera enfin à l'écran.
 
 name: Données VTC
 
 on:
   schedule:
-    - cron: '7 * * * *'        # toutes les heures (UTC) : le brief
+    - cron: '*/15 * * * *'     # tous les quarts d'heure (UTC) : le brief
     - cron: '20 4 * * 1'       # lundi : les lieux
   workflow_dispatch:            # bouton « Run workflow » pour forcer une mise à jour
 
@@ -45,21 +65,36 @@ jobs:
 
       # Le programme de vols d'Air France pèse 80 Mo et ne change que quelques
       # fois par an ; les réponses d'OpenStreetMap et les adresses résolues ne
-      # bougent pas non plus d'un jour à l'autre. On garde tout ça d'une
-      # exécution à l'autre : data.gouv répond alors « 304 non modifié » en
-      # quelques octets, et les miroirs Overpass ne sont sollicités qu'une fois
-      # par semaine. La clé change chaque semaine pour que le cache finisse
-      # quand même par se rafraîchir.
-      - name: Semaine courante (clé de cache)
-        id: semaine
-        run: echo "cle=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      # bougent pas non plus d'un jour à l'autre, ni la programmation des
+      # salles. On garde tout ça d'une exécution à l'autre : data.gouv répond
+      # alors « 304 non modifié » en quelques octets, et les miroirs Overpass
+      # ne sont sollicités qu'une fois par semaine.
+      #
+      # LA CLÉ CHANGE TOUTES LES HEURES, et ce détail fait tout le travail.
+      # actions/cache n'enregistre qu'en cas d'échec sur la clé exacte : avec
+      # une clé hebdomadaire, tout ce qui était téléchargé après la première
+      # exécution de la semaine était jeté à la fin du job, et chaque exécution
+      # repartait de la même photo vieillissante — la billetterie était
+      # réinterrogée à chaque fois, seize appels pour rien. Avec une clé
+      # horaire, la première exécution de l'heure récupère la précédente
+      # (restore-keys), travaille, et réenregistre ; les trois suivantes
+      # retombent sur la clé exacte et ne redemandent rien à personne. Le
+      # dossier pèse 1,2 Mo : vingt-quatre enregistrements par jour ne coûtent
+      # rien, et GitHub évince les vieux tout seul.
+      - name: Heure courante (clé de cache)
+        id: horloge
+        run: |
+          echo "semaine=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+          echo "heure=$(date -u +%Y-%m-%d-%H)" >> "$GITHUB_OUTPUT"
 
       - name: Cache des sources lourdes
         uses: actions/cache@v4
         with:
           path: ${{ steps.app.outputs.dir }}/scripts/.cache
-          key: ssim-${{ steps.semaine.outputs.cle }}
-          restore-keys: ssim-
+          key: ssim-${{ steps.horloge.outputs.semaine }}-${{ steps.horloge.outputs.heure }}
+          restore-keys: |
+            ssim-${{ steps.horloge.outputs.semaine }}-
+            ssim-
 
       # Deux secrets, tous les deux facultatifs et gratuits :
       #   SNCF_TOKEN        fait passer les trains du théorique au temps réel ;
