@@ -651,3 +651,24 @@ a { color: inherit; text-decoration: none; }
    règle vivait dans la section ; elle est ici pour que la section n'ait plus
    jamais besoin d'être recollée. */
 #surlaroute .row { padding: 12px 0; }
+
+/* ---------- Les deux énergies -------------------------------------------
+   Demandé par le chauffeur, et dans ses mots : « deux rectangles, vert pour
+   électrique et une autre couleur pour carburant ». Le vert est celui qui
+   dit déjà « ouvert » dans le reste de l'app — ici il dit « tu peux
+   recharger ». L'ambre est la seule autre couleur du système, celle de
+   l'étoile des favoris : pas de nouvelle teinte pour une nouvelle idée. */
+.tag--carb { border-color: #6A5520; color: #F2C14E; }
+.tag--elec { border-color: #1E5C3C; color: var(--ok); }
+
+/* Une fiche de service porte jusqu'à cinq étiquettes : deux énergies, les
+   horaires, la boutique, les toilettes. Serrées sur une seule ligne avec
+   l'adresse, celle-ci se réduisait à une lettre — « P » pour « Paris 16e ·
+   1 Avenue du Général Sarrail ». Ces lignes-là reviennent donc au retour à
+   la ligne, et l'adresse prend la sienne, entière. */
+.row--riche .row__sub { flex-wrap: wrap; }
+.row--riche .row__what {
+  white-space: normal;
+  overflow: visible;
+  flex: 1 0 100%;
+}

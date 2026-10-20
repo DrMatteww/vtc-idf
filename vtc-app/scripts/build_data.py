@@ -33,6 +33,7 @@ import csv
 import gzip
 import io
 import json
+import math
 import os
 import re
 import sys
@@ -2825,14 +2826,110 @@ def nom_station(adresse, ville):
     return "Station " + (route or ville or "").strip()
 
 
-def fetch_stations_autoroute():
-    """Aires d'autoroute avec boutique, d'après le fichier officiel des prix."""
+# ---- L'électrique : seulement pour SAVOIR si la station en a ------------
+# On ne refait pas Chargemap. La section « Énergie » avait été retirée pour
+# cette raison exacte : les applications spécialisées font mieux, avec les
+# tarifs et la disponibilité en temps réel. Ce qu'on ajoute ici est autre
+# chose, et beaucoup plus petit : une ÉTIQUETTE sur une station, pour qu'un
+# chauffeur en électrique sache laquelle, parmi les stations ouvertes la nuit,
+# peut le recharger.
+#
+# Source : le fichier consolidé des bornes de recharge (ODRE, sans clé,
+# licence ouverte). Mesuré sur le rectangle francilien : 40 221 points de
+# recharge, 6 190 stations distinctes, 7,4 Mo en une requête et quatre
+# secondes. On n'en garde que les coordonnées.
+IRVE_URL = ("https://odre.opendatasoft.com/api/explore/v2.1/catalog/"
+            "datasets/bornes-irve/exports/json")
+IRVE_RECT = ("consolidated_latitude > 48.1 and consolidated_latitude < 49.3 and "
+             "consolidated_longitude > 1.4 and consolidated_longitude < 3.6")
+
+# Un point de recharge compte comme « sur place » en dessous de cette
+# distance. 150 m, c'est la profondeur d'une station avec sa boutique et son
+# parking ; au-delà, c'est le parking d'à côté, et l'étiquette deviendrait un
+# mensonge poli.
+BORNE_PROCHE_M = 150
+PAS_GRILLE = 0.002                    # ≈ 200 m, la maille de recherche
+
+
+def fetch_recharge():
+    """Coordonnées des points de recharge franciliens."""
+    url = IRVE_URL + "?" + urllib.parse.urlencode({
+        "where": IRVE_RECT,
+        "select": "consolidated_latitude,consolidated_longitude",
+        "limit": -1})
+    try:
+        res = http_json(url, timeout=180)
+    except Exception as e:                                      # noqa: BLE001
+        log("  ! bornes de recharge : %s" % e)
+        return {}
+    grille = {}
+    for r in res or []:
+        try:
+            lat = float(r["consolidated_latitude"])
+            lon = float(r["consolidated_longitude"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        grille.setdefault((int(lat / PAS_GRILLE), int(lon / PAS_GRILLE)), []).append((lat, lon))
+    log("  %d points de recharge franciliens" % sum(len(v) for v in grille.values()))
+    return grille
+
+
+def metres(lat1, lon1, lat2, lon2):
+    """Distance à plat : à cette échelle, la courbure ne change rien."""
+    dy = (lat2 - lat1) * 111320.0
+    dx = (lon2 - lon1) * 111320.0 * math.cos(math.radians((lat1 + lat2) / 2))
+    return math.hypot(dx, dy)
+
+
+def a_une_borne(lat, lon, grille):
+    """Vrai si un point de recharge est à moins de BORNE_PROCHE_M."""
+    cx, cy = int(lat / PAS_GRILLE), int(lon / PAS_GRILLE)
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            for (blat, blon) in grille.get((cx + i, cy + j), ()):
+                if metres(lat, lon, blat, blon) <= BORNE_PROCHE_M:
+                    return True
+    return False
+
+
+def enseignes_stations():
+    """Nom des enseignes, par identifiant du fichier des prix.
+
+    Le fichier officiel donne l'adresse et les horaires, mais PAS la marque :
+    sans ça, huit cents lignes s'appelleraient toutes « Station ».
+    OpenStreetMap, lui, porte la marque et l'identifiant du fichier des prix
+    sur le même nœud — 641 correspondances. Elles sont extraites une fois et
+    livrées avec le projet.
+
+    C'est donc une photo, assumée comme telle : une station qui change
+    d'enseigne gardera l'ancien nom jusqu'à ce qu'on régénère ce fichier. Le
+    reste de la fiche — horaires, services, position — vient, lui, du fichier
+    officiel rafraîchi à chaque exécution.
+    """
+    chemin = os.path.join(GRAINE, "enseignes-stations.json")
+    try:
+        with io.open(chemin, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def fetch_stations(noms=None):
+    """Toutes les stations-service franciliennes, d'après le fichier officiel.
+
+    Première version : seules les 31 aires d'autoroute, parce que le chauffeur
+    avait montré que les stations de ville d'OpenStreetMap étaient fausses —
+    leur 24/7 décrivait les pompes, pas la boutique. Le fichier officiel, lui,
+    distingue les deux (`horaires` d'un côté, `horaires_automate_24_24` de
+    l'autre), et c'est justement ce qui permet de toutes les reprendre : pour
+    faire le plein à trois heures du matin, l'automate SUFFIT, et c'est même
+    la seule chose qui compte."""
     depts = ",".join('"%s"' % d for d in sorted(IDF_DEPTS))
-    champs = ("id,cp,ville,adresse,latitude,longitude,horaires,"
+    champs = ("id,cp,ville,adresse,latitude,longitude,horaires,pop,"
               "horaires_automate_24_24,services_service")
-    lignes, total = [], 1
-    for depart in range(0, 500, 100):
-        params = {"where": 'code_departement in (%s) and pop="A"' % depts,
+    lignes = []
+    for depart in range(0, 1200, 100):
+        params = {"where": "code_departement in (%s)" % depts,
                   "limit": 100, "offset": depart, "select": champs}
         try:
             res = http_json(PRIX_CARBURANTS + "?" + urllib.parse.urlencode(params),
@@ -2841,52 +2938,76 @@ def fetch_stations_autoroute():
             log("  ! prix des carburants : %s" % e)
             break
         lignes += res.get("results") or []
-        total = res.get("total_count") or 0
-        if len(lignes) >= total:
+        if len(lignes) >= (res.get("total_count") or 0):
             break
 
+    grille = fetch_recharge()
+    noms = noms if noms is not None else enseignes_stations()
     out, sans_horaire = [], 0
     for r in lignes:
-        # Sans boutique alimentaire, il n'y a rien à manger : la station n'a
-        # rien à faire dans cet onglet, même ouverte toute la nuit.
-        services = r.get("services_service") or []
-        if "Boutique alimentaire" not in services:
-            continue
         try:
-            lat, lon = float(r["latitude"]) / 100000.0, float(r["longitude"]) / 100000.0
+            lat = float(r["latitude"]) / 100000.0
+            lon = float(r["longitude"]) / 100000.0
         except (KeyError, TypeError, ValueError):
             continue
         dept = str(r.get("cp") or "")[:2]
         if dept not in IDF_DEPTS:
             continue
+        services = r.get("services_service") or []
+        autoroute = (r.get("pop") == "A")
         ville = (r.get("ville") or "").strip().title()
+        if str(r.get("cp") or "").startswith("75"):
+            arr = str(r["cp"])[-2:].lstrip("0")
+            ville = "Paris " + arr + "e" if arr else "Paris"
+        adresse = " ".join((r.get("adresse") or "").split()).title()
+
+        # Le nom : l'aire pour l'autoroute, l'enseigne quand OpenStreetMap la
+        # connaît, « Station » sinon. Jamais le nom de la commune seule — on
+        # aurait quarante « Station Paris » dans la même liste.
+        if autoroute:
+            nom = nom_station(adresse, ville)
+        else:
+            nom = noms.get(str(r.get("id"))) or "Station"
+            if nom != "Station" and not re.match(r"(?i)^station\b", nom):
+                nom = "Station " + nom
+
         item = {
             "id": "st%s" % r.get("id"),
-            "name": nom_station(r.get("adresse"), ville),
-            "address": " · ".join(x for x in (ville, " ".join(
-                (r.get("adresse") or "").split()).title()) if x),
+            "name": nom,
+            "address": " · ".join(x for x in (ville, adresse) if x),
             "dept": dept,
             "lat": round(lat, 5), "lon": round(lon, 5),
             "t": "station",
+            # Deux rectangles possibles : carburant, électrique, ou les deux.
+            "energie": ["carburant"] + (["electrique"] if a_une_borne(lat, lon, grille) else []),
         }
+        if autoroute:
+            item["autoroute"] = 1
+        if "Boutique alimentaire" in services:
+            item["boutique"] = 1
+        if "Toilettes publiques" in services:
+            item["wc"] = True
+        # L'automate 24h/24 : la boutique peut dormir, la pompe non. Pour un
+        # plein de nuit, c'est LA ligne qui compte.
+        if (r.get("horaires_automate_24_24") or "").strip().lower() == "oui":
+            item["pompes24"] = 1
+
         ouverts, fermes = horaires_station(r.get("horaires"))
         if ouverts:
             item["o"], item["f"] = ouverts, fermes
             if all(f is not None and f - ouverts[i] >= 23 * 60
                    for i, f in enumerate(fermes)):
                 item["h24"] = 1
-        else:
-            # Pas d'horaires dans le fichier : on l'écrit sur la fiche plutôt
-            # que de laisser une ligne muette, et on ne la fait PAS passer
-            # pour une 24h/24 — même si, sur une aire d'autoroute, c'est
-            # souvent le cas. Une fiche fausse est pire qu'une fiche vague.
+        elif not item.get("pompes24"):
+            # Ni horaires publiés ni automate : on le dit, on ne devine pas.
             item["hours"] = "horaires non publiés"
             sans_horaire += 1
-        if "Toilettes publiques" in services:
-            item["wc"] = True
         out.append(item)
-    if sans_horaire:
-        log("    dont %d sans horaires publiés (affichées quand même)" % sans_horaire)
+
+    elec = sum(1 for x in out if "electrique" in x["energie"])
+    pompes = sum(1 for x in out if x.get("pompes24"))
+    log("  %d stations (%d avec recharge, %d pompes 24h/24, %d sans horaires)"
+        % (len(out), elec, pompes, sans_horaire))
     return out
 
 
@@ -3171,8 +3292,13 @@ def main():
         log("  %d fast-foods ouverts la nuit (OpenStreetMap)" % len(manger_nuit))
         courses = fetch_courses_osm(communes)
         log("  %d supérettes et supermarchés ouverts la nuit" % len(courses))
-        stations = fetch_stations_autoroute()
-        log("  %d aires d'autoroute avec boutique" % len(stations))
+        stations = fetch_stations()
+        # Les aires d'autoroute avec boutique restent dans « Manger » : c'est
+        # là qu'on cherche à manger la nuit. Les mêmes fiches servent aussi,
+        # entières, dans « Services ».
+        aires = [x for x in stations if x.get("autoroute") and x.get("boutique")]
+        log("  dont %d aires d'autoroute avec boutique, reprises dans Manger"
+            % len(aires))
         a_la_main = manual_places("manger.csv", "manger")
         log("  %d fiches saisies à la main" % len(a_la_main))
         write(out, "lieux", {
@@ -3181,7 +3307,8 @@ def main():
             "astuces": fetch_astuces(),
             # Les fiches du terrain d'abord : à distance égale, ce qui a été
             # vérifié par un chauffeur passe devant ce qui vient d'une base.
-            "manger": a_la_main + manger_nuit + courses + stations,
+            "manger": a_la_main + manger_nuit + courses + aires,
+            "services": stations,
         })
 
     log("terminé.")

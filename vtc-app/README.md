@@ -1373,6 +1373,67 @@ Un piège trouvé en route : **un miroir peut répondre `200` avec une liste
 vide**. On a failli mettre zéro toilette en cache pour une semaine. Une réponse
 vide n'est pas une réponse : le script passe au miroir suivant.
 
+### L'onglet « Services » : stations, lavage, pharmacies
+
+Trois choses qui n'ont rien à voir entre elles, sauf qu'on les cherche dans la
+même situation : il est tard, on est loin, et il faut que ce soit ouvert.
+
+#### Les stations reviennent, toutes cette fois
+
+Elles avaient été réduites aux 31 aires d'autoroute parce que le `24/7`
+d'OpenStreetMap décrivait les pompes et pas la boutique. Le fichier officiel
+des prix, lui, **distingue les deux** — et c'est précisément ce qui permet de
+toutes les reprendre : pour faire le plein à trois heures du matin, l'automate
+suffit, et c'est même la seule chose qui compte.
+
+| | |
+|---|---|
+| stations franciliennes | **829** |
+| avec une borne de recharge sur place | **316** |
+| pompes 24h/24 | **366** |
+| avec boutique alimentaire | 467 |
+| avec toilettes publiques | 202 |
+| sur autoroute | 38 |
+
+**L'électrique n'est pas un annuaire de bornes.** La section *Énergie* avait
+été retirée parce que Chargemap et consorts font mieux, avec les tarifs et la
+disponibilité en temps réel. Ce qu'on ajoute est autre chose et beaucoup plus
+petit : une **étiquette** sur une station, pour qu'un chauffeur en électrique
+sache laquelle, parmi celles ouvertes la nuit, peut le recharger. Source : le
+fichier consolidé des bornes (ODRE, sans clé) — 40 221 points dans le
+rectangle francilien, ramenés en une requête de quatre secondes, dont on ne
+garde que les coordonnées. Une borne compte comme « sur place » à moins de
+**150 m** : la profondeur d'une station avec sa boutique et son parking ;
+au-delà, c'est le parking d'à côté et l'étiquette deviendrait un mensonge poli.
+
+**Les deux rectangles** sont ceux demandés par le chauffeur : vert pour
+l'électrique — le vert qui dit déjà « ouvert » ailleurs dans l'app — et ambre
+pour le carburant, la seule autre couleur du système, celle de l'étoile des
+favoris. Pas de nouvelle teinte pour une nouvelle idée.
+
+**Le nom vient d'ailleurs que les horaires.** Le fichier officiel ne porte pas
+la marque : sans rien, 829 lignes s'appelleraient toutes « Station ».
+OpenStreetMap porte la marque *et* l'identifiant du fichier des prix sur le
+même nœud — 641 correspondances, extraites une fois dans
+`scripts/graine/enseignes-stations.json` (15 Ko). C'est une photo, assumée :
+une station qui change d'enseigne gardera l'ancien nom jusqu'à ce qu'on
+régénère ce fichier. Les horaires, les services et la position, eux, sont
+rafraîchis à chaque exécution.
+
+#### Lavage et pharmacies de nuit
+
+Demandés par le chauffeur, et pour de bonnes raisons : une salissure nocturne
+arrête le travail, et une pharmacie ouverte la nuit ne se trouve pas au moment
+où on en a besoin. Deux précisions de sa part : **seulement les pharmacies
+ouvertes toute l'année**, pas celles de garde — le tour change trop souvent
+pour qu'une donnée figée soit honnête.
+
+La source est OpenStreetMap (`amenity=car_wash`, `amenity=pharmacy` avec
+horaires). **Les requêtes n'ont pas abouti le soir du 20 octobre** : les cinq
+miroirs Overpass ont tous refusé ou expiré. L'onglet, les pastilles *Lavage* et
+*Pharmacie* et le format de fiche sont en place et attendent les données ;
+elles s'y brancheront sans toucher à l'application.
+
 ### Les toilettes de parc, masquées la nuit
 
 Deux relevés de terrain que la donnée ne porte pas, et qui vont en sens

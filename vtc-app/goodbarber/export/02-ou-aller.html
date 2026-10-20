@@ -671,6 +671,27 @@ a { color: inherit; text-decoration: none; }
    jamais besoin d'être recollée. */
 #surlaroute .row { padding: 12px 0; }
 
+/* ---------- Les deux énergies -------------------------------------------
+   Demandé par le chauffeur, et dans ses mots : « deux rectangles, vert pour
+   électrique et une autre couleur pour carburant ». Le vert est celui qui
+   dit déjà « ouvert » dans le reste de l'app — ici il dit « tu peux
+   recharger ». L'ambre est la seule autre couleur du système, celle de
+   l'étoile des favoris : pas de nouvelle teinte pour une nouvelle idée. */
+.tag--carb { border-color: #6A5520; color: #F2C14E; }
+.tag--elec { border-color: #1E5C3C; color: var(--ok); }
+
+/* Une fiche de service porte jusqu'à cinq étiquettes : deux énergies, les
+   horaires, la boutique, les toilettes. Serrées sur une seule ligne avec
+   l'adresse, celle-ci se réduisait à une lettre — « P » pour « Paris 16e ·
+   1 Avenue du Général Sarrail ». Ces lignes-là reviennent donc au retour à
+   la ligne, et l'adresse prend la sienne, entière. */
+.row--riche .row__sub { flex-wrap: wrap; }
+.row--riche .row__what {
+  white-space: normal;
+  overflow: visible;
+  flex: 1 0 100%;
+}
+
 </style>
 <style>
   body { background:#0A0A0B; color:#F4F4F5; margin:0;
@@ -1671,6 +1692,7 @@ var VTC = (function () {
   var SOUS = [
     { code: 'wc',      label: 'Toilettes', ico: '🚽', file: 'lieux', key: 'toilettes' },
     { code: 'manger',  label: 'Manger',    ico: '🍔', file: 'lieux', key: 'manger' },
+    { code: 'services', label: 'Services', ico: '⛽', file: 'lieux', key: 'services' },
     { code: 'trafic',  label: 'Trafic',    ico: '🚧', file: 'brief', key: 'closures' },
     { code: 'astuces', label: 'Astuces',   ico: '💡', file: 'lieux', key: 'astuces' }
   ];
@@ -1680,8 +1702,54 @@ var VTC = (function () {
          { code: 'fav', label: '★ Favoris' },
          { code: '24',  label: 'Ouvert 24h' }],
     astuces: [{ code: 'all', label: 'Toutes' },
-              { code: 'fav', label: '★ Favoris' }]
+              { code: 'fav', label: '★ Favoris' }],
+    /* Services : ce qu'on cherche à trois heures du matin, dans l'ordre où on
+       le cherche. « 24h/24 » d'abord parce que c'est la question qu'on se
+       pose vraiment ; l'électrique ensuite, parce qu'un chauffeur en
+       électrique n'a pas le choix.                                        */
+    services: [{ code: 'all',    label: 'Tout' },
+               { code: 'fav',    label: '★ Favoris' },
+               { code: '24',     label: '24h/24' },
+               { code: 'elec',   label: '⚡ Électrique' },
+               { code: 'lavage', label: 'Lavage' },
+               { code: 'pharma', label: 'Pharmacie' }]
   };
+
+  /* ---- Les services : station, lavage, pharmacie ------------------------
+     Trois choses qui n'ont rien à voir entre elles, sauf qu'on les cherche
+     dans la même situation : il est tard, on est loin, et il faut que ce
+     soit ouvert.
+
+     Pour une station, « ouvert » a deux sens, et le fichier officiel les
+     distingue : la BOUTIQUE a ses horaires, et l'AUTOMATE tourne souvent
+     24h/24. Pour faire le plein de nuit, l'automate suffit — c'est même la
+     seule chose qui compte. Une station avec automate est donc toujours
+     « ouverte », quelle que soit l'heure de sa boutique.                   */
+  function ouvert24(it) {
+    return !!(it.h24 || it.pompes24);
+  }
+
+  function inService(it, code) {
+    if (!code || code === 'all') return true;
+    if (code === 'fav')    return estFavori(it.id);
+    if (code === '24')     return ouvert24(it);
+    if (code === 'elec')   return (it.energie || []).indexOf('electrique') !== -1;
+    if (code === 'lavage') return it.t === 'lavage';
+    if (code === 'pharma') return it.t === 'pharmacie';
+    return true;
+  }
+
+  /* Les deux rectangles demandés par le chauffeur : vert pour l'électrique,
+     ambre pour le carburant. Une station qui a les deux porte les deux ; on
+     ne fusionne pas, parce que c'est précisément la différence qui est
+     utile.                                                                */
+  function energieTags(it) {
+    var e = it.energie || [];
+    return (e.indexOf('carburant') !== -1
+              ? '<span class="tag tag--carb">Carburant</span> ' : '') +
+           (e.indexOf('electrique') !== -1
+              ? '<span class="tag tag--elec">⚡ Électrique</span> ' : '');
+  }
 
   function route(hostId) {
     var hote = document.getElementById(hostId || 'surlaroute');
@@ -1803,8 +1871,8 @@ var VTC = (function () {
     /* Le bouton du GPS choisi dans Réglages se range à droite, au niveau du
        nom et de l'adresse : trois lignes deviennent deux, et l'écran tient
        huit lieux au lieu de quatre.                                       */
-    function place(it, sub) {
-      return '<div class="row">' +
+    function place(it, sub, classe) {
+      return '<div class="row' + (classe ? ' ' + classe : '') + '">' +
         '<div class="row__body">' +
           '<p class="row__title">' + esc(it.name) + '</p>' +
           '<p class="row__sub">' + sub + '</p>' +
@@ -1962,6 +2030,15 @@ var VTC = (function () {
         if (enFavoris())    list = list.filter(function (it) { return estFavori(it.id); });
       }
 
+      if (tab === 'services') {
+        /* Une station dont l'automate tourne la nuit reste ouverte, même si
+           sa boutique a fermé à 20 h. Pour le reste — lavage, pharmacie —
+           c'est la règle habituelle : ce qui est fermé ne s'affiche pas. */
+        list = list.filter(function (it) {
+          return (ouvert24(it) || !it.f || mangerEtat(it)) && inService(it, vue());
+        });
+      }
+
       var ferme = false;    // vrai quand on montre des adresses fermées, faute de mieux
       if (tab === 'manger') {
         /* Quand on cherche, on cherche PARTOUT : la recherche l'emporte sur
@@ -2033,6 +2110,22 @@ var VTC = (function () {
                   : '<span class="tag">' + esc(it.open_label || 'horaires inconnus') +
                     '</span> ') +
                 (it.pmr ? '<span class="tag">PMR</span> ' : '');
+        } else if (tab === 'services') {
+          var e = mangerEtat(it);
+          sub = '<span class="row__what">' + esc(it.address) + '</span>' +
+                energieTags(it) +
+                (it.pompes24
+                  ? '<span class="tag tag--ok">Pompes 24h/24</span> '
+                  : it.h24
+                    ? '<span class="tag tag--ok">24h/24</span> '
+                    : e
+                      ? (e.ouvert
+                          ? '<span class="tag tag--ok">jusqu\'à ' + hhmm(e.fin) + '</span> '
+                          : '<span class="tag">ouvre à ' + hhmm(e.debut) + '</span> ')
+                      : (it.hours ? '<span class="tag">' + esc(it.hours) + '</span> ' : '')) +
+                (it.boutique ? '<span class="tag">Boutique</span> ' : '') +
+                (it.wc ? '<span class="tag tag--ok">Toilettes</span> ' : '') +
+                (it.autoroute ? '<span class="tag">Autoroute</span> ' : '');
         } else {
           var etat = mangerEtat(it);
           /* Fiche reprise d'une base : l'heure de fermeture de CETTE nuit, et
@@ -2054,7 +2147,7 @@ var VTC = (function () {
                 (it.wc ? '<span class="tag tag--ok">Toilettes</span> ' : '') +
                 (it.price ? '<span class="tag">' + esc(it.price) + '</span> ' : '');
         }
-        html += place(it, sub);
+        html += place(it, sub, tab === 'services' ? 'row--riche' : '');
       });
 
       html += '</div></div>';
@@ -2070,6 +2163,14 @@ var VTC = (function () {
           '<b>boutique</b>, pas des pompes. Le reste vient d\'OpenStreetMap, ' +
           'renseigné par des contributeurs : vérifie avant de faire dix ' +
           'kilomètres.</p>';
+      }
+      if (tab === 'services' && !enFavoris()) {
+        html += '<p class="note">Stations, lavages et pharmacies ouverts la ' +
+          'nuit. Pour une station, <b>« Pompes 24h/24 »</b> veut dire que ' +
+          'l\'automate fonctionne : on fait le plein même boutique fermée. ' +
+          'L\'étiquette <b>Électrique</b> apparaît quand une borne de recharge ' +
+          'se trouve sur place — à moins de 150 mètres. Horaires et services : ' +
+          'fichier officiel des prix des carburants.</p>';
       }
       /* La note décrit la liste qu'on a sous les yeux : en favoris, « les 12
          premières » serait faux, et on sait déjà d'où elles viennent.     */
