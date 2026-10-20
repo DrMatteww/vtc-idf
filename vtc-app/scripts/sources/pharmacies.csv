@@ -1,0 +1,7 @@
+# Pharmacies ouvertes 24h/24 toute l'année que la base ignore. Relevé terrain.
+# Ne JAMAIS mettre ici une pharmacie de garde : le tour change toutes les
+# semaines, et une porte fermée à 3 h du matin est pire que pas d'information.
+# L'adresse suffit, les coordonnées sont calculées à la construction.
+nom;adresse;horaires;actif
+Grande pharmacie du Palais des Congrès;2 Place de la Porte Maillot, 75017 Paris;24/24;1
+Pharmacie Montreuil 93 - Leader Santé;26 Rue de Paris, 93100 Montreuil;24/24;1

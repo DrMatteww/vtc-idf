@@ -3136,6 +3136,66 @@ def fetch_pharmacies_osm(communes):
                             prefixe="ph", forcer="pharmacie")
 
 
+def pharmacies_main():
+    """Pharmacies de nuit relevées à la main.
+
+    OpenStreetMap n'en connaît que treize ; le chauffeur en connaît d'autres,
+    et il y est passé. L'adresse suffit — les coordonnées sont calculées par
+    l'API Adresse à la construction, comme pour les salles et les événements.
+
+    Deux garde-fous : on refuse ce qui n'a pas d'horaires 24h/24 écrits, et on
+    écarte une fiche déjà connue d'OpenStreetMap à moins de 40 m, pour ne pas
+    afficher deux fois la même porte."""
+    lignes = read_csv("pharmacies.csv")
+    if not lignes:
+        return []
+    chemin, cache = _geo_cache()
+    out = []
+    for i, r in enumerate(lignes):
+        adresse = (r.get("adresse") or "").strip()
+        nom = (r.get("nom") or "").strip()
+        if not adresse or not nom:
+            continue
+        pt = geocode(adresse, cache)
+        if not pt:
+            log("  ! pharmacie non géocodée : %r" % adresse)
+            continue
+        lat, lon, dept = pt
+        ouverts, fermes = parse_opening(horaires_vers_osm(r.get("horaires") or ""))
+        # « 26 Rue de Paris, 93100 Montreuil » s'écrit « Montreuil · 26 Rue de
+        # Paris » comme partout ailleurs : la commune d'abord, parce que la
+        # ligne se coupe par la droite et qu'on veut savoir où avant de savoir
+        # au numéro.
+        bouts = [x.strip() for x in adresse.split(",")]
+        if len(bouts) >= 2:
+            ville = re.sub(r"^\d{5}\s*", "", bouts[-1]).strip()
+            affiche = " · ".join(x for x in (ville, bouts[0]) if x)
+        else:
+            affiche = adresse
+
+        item = {
+            "id": "phm-%s" % _cle(nom),
+            "name": nom,
+            "address": affiche,
+            "dept": dept,
+            "lat": lat, "lon": lon,
+            "t": "pharmacie",
+        }
+        if fermes and any(x is not None for x in fermes):
+            item["o"], item["f"] = ouverts, fermes
+            if horaires_vers_osm(r.get("horaires") or "") == "24/7":
+                item["h24"] = 1
+        else:
+            item["hours"] = (r.get("horaires") or "horaires inconnus").strip()
+        out.append(item)
+    try:
+        with io.open(chemin, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except OSError:
+        pass
+    return out
+
+
 def fetch_courses_osm(communes):
     """Supérettes, supermarchés et boutiques de stations ouverts la nuit."""
     res = overpass(OVERPASS_COURSES, "courses")
@@ -3428,7 +3488,15 @@ def main():
         lavages = fetch_lavage_osm(communes)
         log("  %d stations de lavage ouvertes la nuit" % len(lavages))
         pharmacies = fetch_pharmacies_osm(communes)
-        log("  %d pharmacies ouvertes 24h/24 toute l'année" % len(pharmacies))
+        mains_ph = pharmacies_main()
+        for m in mains_ph:
+            # Deux fois la même porte, une fois par source : on garde celle
+            # du terrain et on jette l'autre.
+            pharmacies = [x for x in pharmacies
+                          if metres(x["lat"], x["lon"], m["lat"], m["lon"]) > 40]
+        pharmacies += mains_ph
+        log("  %d pharmacies ouvertes 24h/24 toute l'année (dont %d à la main)"
+            % (len(pharmacies), len(mains_ph)))
         aires = [x for x in stations if x.get("autoroute") and x.get("boutique")]
         log("  dont %d aires d'autoroute avec boutique, reprises dans Manger"
             % len(aires))

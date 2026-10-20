@@ -1493,6 +1493,17 @@ République, place de Clichy, Porte de Vincennes, Boulevard Brune,
 Opéra-Bastille, avenue d'Italie, rue du Commerce, les Champs-Élysées, Torcy et
 Roissy-en-Brie.
 
+**Deux de plus, relevées à la main**, parce qu'OpenStreetMap ne les connaît
+pas : la Grande pharmacie du Palais des Congrès (niveau -1, en face de celle de
+la Porte Maillot) et Leader Santé, 26 rue de Paris à Montreuil.
+`scripts/sources/pharmacies.csv` prend un nom et une adresse — les coordonnées
+sont calculées par l'API Adresse à la construction — et deux garde-fous
+s'appliquent : pas d'horaires 24h/24 écrits, pas de fiche ; et une adresse à
+moins de 40 m d'une fiche OpenStreetMap remplace celle-ci, pour ne pas afficher
+deux fois la même porte. Le fichier porte en commentaire la règle du chauffeur,
+à l'endroit où on serait tenté de l'oublier : **jamais une pharmacie de
+garde**.
+
 ### Les toilettes de parc, masquées la nuit
 
 Deux relevés de terrain que la donnée ne porte pas, et qui vont en sens
