@@ -1428,11 +1428,27 @@ où on en a besoin. Deux précisions de sa part : **seulement les pharmacies
 ouvertes toute l'année**, pas celles de garde — le tour change trop souvent
 pour qu'une donnée figée soit honnête.
 
-La source est OpenStreetMap (`amenity=car_wash`, `amenity=pharmacy` avec
-horaires). **Les requêtes n'ont pas abouti le soir du 20 octobre** : les cinq
-miroirs Overpass ont tous refusé ou expiré. L'onglet, les pastilles *Lavage* et
-*Pharmacie* et le format de fiche sont en place et attendent les données ;
-elles s'y brancheront sans toucher à l'application.
+La source est OpenStreetMap. **Le lavage est passé, les pharmacies non** — le
+soir du 20 octobre, les cinq miroirs Overpass ont refusé ou expiré pendant
+quarante minutes, et seule la première des deux requêtes est arrivée au bout.
+
+| | |
+|---|---|
+| stations de lavage dans le rectangle francilien | **645** |
+| qui publient des horaires | 111 |
+| encore ouvertes après 23 h | **74**, dont **73 en 24h/24** |
+| retenues après filtrage des départements | **64** |
+
+Ces 73 sur 74 ne sont pas une coïncidence : c'est la nature même du lavage
+automatique, qui n'a besoin de personne. Celles sans horaires publiés sont
+écartées — une station de lavage fermée la nuit n'a rien à faire dans un outil
+de nuit.
+
+Les pastilles *Lavage* et *Pharmacie* et le format de fiche sont en place ; les
+pharmacies s'y brancheront sans toucher à l'application. Règle posée par le
+chauffeur et à ne pas oublier : **seulement celles ouvertes toute l'année**,
+jamais les gardes tournantes — le tour change trop souvent pour qu'une donnée
+figée soit honnête.
 
 ### Les toilettes de parc, masquées la nuit
 

@@ -2594,6 +2594,19 @@ OVERPASS_COURSES = ('[out:json][timeout:240];'
                     '(48.12,1.45,49.24,3.56);'
                     'out center tags;')
 
+# Le lavage : demande du chauffeur, et l'argument est imparable — une
+# grosse salissure nocturne arrête le travail jusqu'au prochain jet.
+# Mesuré : 645 stations de lavage dans le rectangle francilien, 111
+# publient des horaires, 74 passent 23 h — dont 73 ouvertes 24h/24, ce qui
+# est la nature même du lavage automatique. On ne garde que celles-là :
+# une station de lavage fermée la nuit n'a rien à faire dans un outil de
+# nuit.
+OVERPASS_LAVAGE = ('[out:json][timeout:180];'
+                   'nwr["amenity"="car_wash"]["opening_hours"]'
+                   '(48.12,1.45,49.24,3.56);'
+                   'out center tags;')
+
+
 # ---- Les stations : plus d'OpenStreetMap, le fichier officiel ------------
 # Première version : toutes les stations-service d'OpenStreetMap ouvertes la
 # nuit, soit 554 points. Le chauffeur a tranché, et il avait les chiffres du
@@ -3011,6 +3024,15 @@ def fetch_stations(noms=None):
     return out
 
 
+def fetch_lavage_osm(communes):
+    """Stations de lavage ouvertes la nuit."""
+    res = overpass(OVERPASS_LAVAGE, "lavage")
+    if res is None:
+        return []
+    return parse_manger_osm(res, communes, adresses_osm(res),
+                            prefixe="la", forcer="lavage")
+
+
 def fetch_courses_osm(communes):
     """Supérettes, supermarchés et boutiques de stations ouverts la nuit."""
     res = overpass(OVERPASS_COURSES, "courses")
@@ -3019,7 +3041,7 @@ def fetch_courses_osm(communes):
     return parse_manger_osm(res, communes, adresses_osm(res), prefixe="co")
 
 
-def parse_manger_osm(res, communes, adresses=None, prefixe="mo"):
+def parse_manger_osm(res, communes, adresses=None, prefixe="mo", forcer=None):
     """Séparé du téléchargement pour être testable sur une réponse enregistrée.
 
     Sert aux deux requêtes — fast-foods et courses : mêmes champs, même règle
@@ -3036,6 +3058,10 @@ def parse_manger_osm(res, communes, adresses=None, prefixe="mo"):
         if not fermes or not any(f and f > NUIT_DES for f in fermes):
             continue                          # ferme avant 23 h tous les jours
         cat, defaut = categorie(tags)
+        # Une station de lavage n'a pas de cuisine : sa catégorie est
+        # imposée par l'appelant, pas devinée des étiquettes.
+        if forcer:
+            cat, defaut = forcer, 'Lavage'
         # Les stations ne viennent plus d'OpenStreetMap mais du fichier
         # officiel des prix : on les écarte ici, y compris si une réponse
         # gardée en cache ou la graine livrée avec le projet en contient
@@ -3296,6 +3322,8 @@ def main():
         # Les aires d'autoroute avec boutique restent dans « Manger » : c'est
         # là qu'on cherche à manger la nuit. Les mêmes fiches servent aussi,
         # entières, dans « Services ».
+        lavages = fetch_lavage_osm(communes)
+        log("  %d stations de lavage ouvertes la nuit" % len(lavages))
         aires = [x for x in stations if x.get("autoroute") and x.get("boutique")]
         log("  dont %d aires d'autoroute avec boutique, reprises dans Manger"
             % len(aires))
@@ -3308,7 +3336,7 @@ def main():
             # Les fiches du terrain d'abord : à distance égale, ce qui a été
             # vérifié par un chauffeur passe devant ce qui vient d'une base.
             "manger": a_la_main + manger_nuit + courses + aires,
-            "services": stations,
+            "services": stations + lavages,
         })
 
     log("terminé.")

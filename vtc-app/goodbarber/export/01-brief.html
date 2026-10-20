@@ -1755,7 +1755,15 @@ var VTC = (function () {
      ambre pour le carburant. Une station qui a les deux porte les deux ; on
      ne fusionne pas, parce que c'est précisément la différence qui est
      utile.                                                                */
+  var SERVICE_NOM = { lavage: 'Lavage', pharmacie: 'Pharmacie' };
+
   function energieTags(it) {
+    /* Un lavage ou une pharmacie ne vend pas d'énergie : ils portent leur
+       nature à la place. Sans ça, « Total · Créteil · 24h/24 » dans la liste
+       mélangée laisse croire à une station alors que c'est un lavage. */
+    if (it.t && it.t !== 'station') {
+      return '<span class="tag">' + esc(SERVICE_NOM[it.t] || it.t) + '</span> ';
+    }
     var e = it.energie || [];
     return (e.indexOf('carburant') !== -1
               ? '<span class="tag tag--carb">Carburant</span> ' : '') +
