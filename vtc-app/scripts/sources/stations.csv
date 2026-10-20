@@ -1,0 +1,8 @@
+# Corrections à la main sur les stations. Ce que le chauffeur sait et que les
+# fichiers ignorent : une enseigne absente, un horaire qui n'est publié nulle
+# part. L'identifiant est celui du fichier officiel des prix ; demande-le, il
+# se retrouve en une commande.
+#   horaires : « 24/24 », « 6h-22h », « lun-sam 7h-21h, dim 9h-13h » — même
+#   syntaxe que manger.csv. Laisser vide pour ne corriger que le nom.
+id;nom;horaires;actif
+75019013;Total;;1

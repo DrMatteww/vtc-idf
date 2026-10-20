@@ -182,7 +182,12 @@ def read_csv(name):
         log("  ! %s absent" % name)
         return []
     with open(path, newline="", encoding="utf-8") as f:
-        rows = [r for r in csv.DictReader(f, delimiter=";")
+        # Les lignes commençant par # sont des explications écrites pour le
+        # chauffeur, dans le fichier qu'il va ouvrir. Sans ce filtre, elles
+        # devenaient des fiches fantômes — et l'en-tête était lu comme une
+        # donnée, ce qui ne se voit qu'à l'affichage.
+        lignes = [l for l in f if not l.lstrip().startswith("#")]
+        rows = [r for r in csv.DictReader(lignes, delimiter=";")
                 if r.get("actif", "1").strip() not in ("0", "non", "")]
     return rows
 
@@ -2905,26 +2910,69 @@ def a_une_borne(lat, lon, grille):
     return False
 
 
-def enseignes_stations():
-    """Nom des enseignes, par identifiant du fichier des prix.
+# Enseignes boudées par le chauffeur : « toujours trop trop cher ». Ce n'est
+# pas un jugement du script, c'est une préférence de métier, et elle vaut
+# mieux qu'une moyenne de prix : un chauffeur sait où il ne va pas.
+MARQUES_ECARTEES = ("avia", "shell", "eni")
 
-    Le fichier officiel donne l'adresse et les horaires, mais PAS la marque :
-    sans ça, huit cents lignes s'appelleraient toutes « Station ».
-    OpenStreetMap, lui, porte la marque et l'identifiant du fichier des prix
-    sur le même nœud — 641 correspondances. Elles sont extraites une fois et
-    livrées avec le projet.
 
-    C'est donc une photo, assumée comme telle : une station qui change
-    d'enseigne gardera l'ancien nom jusqu'à ce qu'on régénère ce fichier. Le
-    reste de la fiche — horaires, services, position — vient, lui, du fichier
-    officiel rafraîchi à chaque exécution.
+def corrections_stations():
+    """Ce que le chauffeur sait et que les fichiers ignorent.
+
+    Le fichier officiel ne porte pas la marque, OpenStreetMap ne couvre pas
+    tout : 286 stations s'appelaient « Station », et certaines ne publient
+    leurs horaires nulle part. Une ligne dans stations.csv suffit alors — et
+    elle gagne sur toutes les autres sources, parce qu'elle vient de
+    quelqu'un qui y est passé."""
+    out = {}
+    for r in read_csv("stations.csv"):
+        ident = (r.get("id") or "").strip()
+        if not ident:
+            continue
+        out[ident] = {"nom": (r.get("nom") or "").strip(),
+                      "horaires": (r.get("horaires") or "").strip()}
+    return out
+
+
+def stations_osm():
+    """Photo des stations d'OpenStreetMap : enseigne, horaires, position.
+
+    Le fichier officiel donne l'adresse, les services et les horaires — mais
+    pas la marque, et pas toujours les horaires : 286 stations s'appelleraient
+    « Station » et 275 n'afficheraient rien. OpenStreetMap porte les deux, et
+    l'identifiant du fichier des prix sur le même nœud quand il est renseigné.
+
+    C'est une photo, assumée comme telle : une station qui change d'enseigne
+    gardera l'ancien nom jusqu'à ce qu'on régénère ce fichier. Le reste de la
+    fiche vient, lui, du fichier officiel rafraîchi à chaque exécution.
     """
-    chemin = os.path.join(GRAINE, "enseignes-stations.json")
     try:
-        with io.open(chemin, encoding="utf-8") as f:
-            return json.load(f)
+        with io.open(os.path.join(GRAINE, "stations-osm.json"), encoding="utf-8") as f:
+            noeuds = json.load(f)
     except (OSError, ValueError):
-        return {}
+        return {}, {}
+    par_ref, grille = {}, {}
+    for n in noeuds:
+        if n.get("ref"):
+            par_ref[n["ref"]] = n
+        grille.setdefault((int(n["lat"] / PAS_GRILLE), int(n["lon"] / PAS_GRILLE)), []).append(n)
+    return par_ref, grille
+
+
+# Au-delà, ce n'est plus la même station mais celle d'en face.
+STATION_PROCHE_M = 120
+
+
+def station_proche(lat, lon, grille):
+    cx, cy = int(lat / PAS_GRILLE), int(lon / PAS_GRILLE)
+    meilleur, dmin = None, 1e9
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            for n in grille.get((cx + i, cy + j), ()):
+                d = metres(lat, lon, n["lat"], n["lon"])
+                if d < dmin:
+                    meilleur, dmin = n, d
+    return meilleur if dmin <= STATION_PROCHE_M else None
 
 
 def fetch_stations(noms=None):
@@ -2955,7 +3003,8 @@ def fetch_stations(noms=None):
             break
 
     grille = fetch_recharge()
-    noms = noms if noms is not None else enseignes_stations()
+    par_ref, grille_osm = stations_osm()
+    mains = corrections_stations()
     out, sans_horaire = [], 0
     for r in lignes:
         try:
@@ -2977,12 +3026,21 @@ def fetch_stations(noms=None):
         # Le nom : l'aire pour l'autoroute, l'enseigne quand OpenStreetMap la
         # connaît, « Station » sinon. Jamais le nom de la commune seule — on
         # aurait quarante « Station Paris » dans la même liste.
+        # Ce qu'OpenStreetMap sait de cette station : d'abord par identifiant,
+        # sinon par proximité — beaucoup de nœuds n'ont pas la référence.
+        main = mains.get(str(r.get("id")), {})
+        osm = par_ref.get(str(r.get("id"))) or station_proche(lat, lon, grille_osm) or {}
+        enseigne = main.get("nom") or (osm.get("nom") or "").strip()
+
+        if enseigne and any(m in enseigne.lower() for m in MARQUES_ECARTEES):
+            continue
+
         if autoroute:
             nom = nom_station(adresse, ville)
+        elif enseigne:
+            nom = enseigne if re.match(r"(?i)^station\b", enseigne) else "Station " + enseigne
         else:
-            nom = noms.get(str(r.get("id"))) or "Station"
-            if nom != "Station" and not re.match(r"(?i)^station\b", nom):
-                nom = "Station " + nom
+            nom = "Station"
 
         item = {
             "id": "st%s" % r.get("id"),
@@ -3006,6 +3064,23 @@ def fetch_stations(noms=None):
             item["pompes24"] = 1
 
         ouverts, fermes = horaires_station(r.get("horaires"))
+        if main.get("horaires"):
+            o2, f2 = parse_opening(horaires_vers_osm(main["horaires"]))
+            if f2 and any(x is not None for x in f2):
+                ouverts, fermes = o2, f2
+                item["src"] = "main"
+            else:
+                log("  ! horaires non compris pour la station %s : %r"
+                    % (r.get("id"), main["horaires"]))
+        if not ouverts and osm.get("oh"):
+            # Le fichier officiel ne publie rien : on reprend OpenStreetMap,
+            # qui décrit la STATION entière, pompes comprises. C'est moins
+            # précis que la distinction boutique / automate du fichier
+            # officiel, et c'est dit dans la note sous la liste — mais pour
+            # 123 stations, c'est la différence entre une information et rien.
+            ouverts, fermes = parse_opening(osm["oh"])
+            if ouverts:
+                item["src"] = "osm"
         if ouverts:
             item["o"], item["f"] = ouverts, fermes
             if all(f is not None and f - ouverts[i] >= 23 * 60
@@ -3017,6 +3092,9 @@ def fetch_stations(noms=None):
             sans_horaire += 1
         out.append(item)
 
+    ecartees = len(lignes) - len(out)
+    if ecartees:
+        log("    %d écartées (enseignes bouldées ou hors IDF)" % ecartees)
     elec = sum(1 for x in out if "electrique" in x["energie"])
     pompes = sum(1 for x in out if x.get("pompes24"))
     log("  %d stations (%d avec recharge, %d pompes 24h/24, %d sans horaires)"

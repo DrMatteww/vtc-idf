@@ -1406,10 +1406,46 @@ garde que les coordonnées. Une borne compte comme « sur place » à moins de
 **150 m** : la profondeur d'une station avec sa boutique et son parking ;
 au-delà, c'est le parking d'à côté et l'étiquette deviendrait un mensonge poli.
 
+**Un réglage plutôt qu'une pastille.** Les pastilles « 24h/24 » et
+« Électrique » ont disparu : la première parce que la liste ne montre déjà que
+ce qui est ouvert, la seconde parce qu'elle est devenue un réglage. Le
+chauffeur déclare une fois son véhicule dans *Réglages → Ton véhicule*, et en
+électrique la liste ne garde que les 301 stations qui rechargent. Deux choix
+seulement, pas trois : un hybride fait le plein comme un thermique, et c'est
+la seule question qui change la liste.
+
 **Les deux rectangles** sont ceux demandés par le chauffeur : vert pour
 l'électrique — le vert qui dit déjà « ouvert » ailleurs dans l'app — et ambre
 pour le carburant, la seule autre couleur du système, celle de l'étoile des
 favoris. Pas de nouvelle teinte pour une nouvelle idée.
+
+**Trois enseignes sont écartées** — Avia, Shell, Eni : *« toujours trop trop
+cher »*. Ce n'est pas un jugement du script mais une préférence de métier, et
+elle vaut mieux qu'une moyenne de prix : un chauffeur sait où il ne va pas.
+26 stations en moins, 803 restantes.
+
+**Les trous se bouchent avec OpenStreetMap, puis à la main.** Le fichier
+officiel laissait 286 stations sans enseigne et 275 sans horaires. Une photo
+des nœuds `amenity=fuel` (659, dans `scripts/graine/stations-osm.json`) les
+rattrape par identifiant d'abord, par proximité ensuite — 120 m au-delà
+desquels ce n'est plus la même station mais celle d'en face. Résultat :
+**155 horaires récupérés**, il n'en manque plus que 120.
+
+Quand ni l'un ni l'autre ne sait, il reste `scripts/sources/stations.csv` :
+une ligne, un identifiant, un nom, des horaires écrits comme on parle. Elle
+gagne sur toutes les autres sources, parce qu'elle vient de quelqu'un qui y
+est passé. La première ligne du fichier est la station du périphérique dans le
+19e, que le chauffeur a reconnue comme un Total.
+
+Une honnêteté à garder en tête : les horaires repris d'OpenStreetMap décrivent
+**la station entière, pompes comprises**, et pas la distinction boutique /
+automate du fichier officiel. C'est écrit dans la note sous la liste. Pour
+120 stations, c'était la différence entre une information et rien.
+
+**Pas de Google.** Les conditions de Maps Platform interdisent de conserver
+autre chose que `place_id` et les coordonnées, trente jours. Ce qui est
+affiché ici doit pouvoir être redistribué ; c'est la même règle qui avait fait
+choisir OpenStreetMap pour les fast-foods.
 
 **Le nom vient d'ailleurs que les horaires.** Le fichier officiel ne porte pas
 la marque : sans rien, 829 lignes s'appelleraient toutes « Station ».

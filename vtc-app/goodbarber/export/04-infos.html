@@ -745,6 +745,14 @@ a { color: inherit; text-decoration: none; }
   </div>
 
   <div class="card">
+    <div class="card__label">Ton véhicule</div>
+    <p class="lead">Ce que tu conduis décide de ce qu'on te montre dans
+      <b>Sur la route → Services</b>. En électrique, seules les stations qui
+      rechargent apparaissent — les autres ne te servent à rien.</p>
+    <div class="filters" id="veh" style="padding:10px 0 0"></div>
+  </div>
+
+  <div class="card">
     <div class="card__label">Pourquoi c'est gratuit</div>
     <p class="lead">L'appli est <b>gratuite, et le restera</b>. Pas d'abonnement, pas de version payante.</p>
     <p class="lead">Elle est financée par de la <b>publicité</b>. C'est ce qui paie l'hébergement et le temps passé à tenir les données à jour. Tu le sais dès l'installation, il n'y a rien de caché là-dedans.</p>
@@ -1850,10 +1858,14 @@ var VTC = (function () {
        le cherche. « 24h/24 » d'abord parce que c'est la question qu'on se
        pose vraiment ; l'électrique ensuite, parce qu'un chauffeur en
        électrique n'a pas le choix.                                        */
+    /* Services : trois natures, et c'est tout. Les pastilles « 24h/24 » et
+       « Électrique » ont été retirées — la première parce que la liste ne
+       montre déjà que ce qui est ouvert, la seconde parce qu'elle est
+       devenue un réglage : le chauffeur dit une fois ce qu'il conduit, et
+       l'app ne lui montre plus que les stations qui le concernent.      */
     services: [{ code: 'all',    label: 'Tout' },
                { code: 'fav',    label: '★ Favoris' },
-               { code: '24',     label: '24h/24' },
-               { code: 'elec',   label: '⚡ Électrique' },
+               { code: 'station', label: 'Stations' },
                { code: 'lavage', label: 'Lavage' },
                { code: 'pharma', label: 'Pharmacie' }]
   };
@@ -1872,13 +1884,42 @@ var VTC = (function () {
     return !!(it.h24 || it.pompes24);
   }
 
+  /* ---- Ce que conduit le chauffeur -------------------------------------
+     Une station sans borne n'intéresse pas un électrique, et réciproquement.
+     Plutôt qu'une pastille à recliquer chaque nuit, c'est un réglage : on le
+     dit une fois dans Réglages, et la liste s'y tient. Par défaut
+     « carburant », qui est encore le cas de la plupart des chauffeurs — et
+     qui ne retire rien à personne, puisque toutes les stations en vendent. */
+  var VEHICULES = { carburant: 1, electrique: 1 };
+  var VEH_KEY = 'vtc_vehicule';
+
+  function vehicule() {
+    try {
+      var v = localStorage.getItem(VEH_KEY);
+      if (VEHICULES[v]) return v;
+    } catch (e) {}
+    return 'carburant';
+  }
+
+  function setVehicule(v) {
+    try { localStorage.setItem(VEH_KEY, VEHICULES[v] ? v : 'carburant'); } catch (e) {}
+  }
+
+  /* Un lavage ou une pharmacie ne vend pas d'énergie : ils sont montrés à
+     tout le monde. Seules les stations sont filtrées.                     */
+  function pourMoi(it) {
+    if (it.t !== 'station') return true;
+    if (vehicule() !== 'electrique') return true;
+    return (it.energie || []).indexOf('electrique') !== -1;
+  }
+
   function inService(it, code) {
+    if (!pourMoi(it)) return false;
     if (!code || code === 'all') return true;
-    if (code === 'fav')    return estFavori(it.id);
-    if (code === '24')     return ouvert24(it);
-    if (code === 'elec')   return (it.energie || []).indexOf('electrique') !== -1;
-    if (code === 'lavage') return it.t === 'lavage';
-    if (code === 'pharma') return it.t === 'pharmacie';
+    if (code === 'fav')     return estFavori(it.id);
+    if (code === 'station') return it.t === 'station';
+    if (code === 'lavage')  return it.t === 'lavage';
+    if (code === 'pharma')  return it.t === 'pharmacie';
     return true;
   }
 
@@ -2320,8 +2361,13 @@ var VTC = (function () {
           'nuit. Pour une station, <b>« Pompes 24h/24 »</b> veut dire que ' +
           'l\'automate fonctionne : on fait le plein même boutique fermée. ' +
           'L\'étiquette <b>Électrique</b> apparaît quand une borne de recharge ' +
-          'se trouve sur place — à moins de 150 mètres. Horaires et services : ' +
-          'fichier officiel des prix des carburants.</p>';
+          'se trouve sur place — à moins de 150 mètres. ' +
+          (vehicule() === 'electrique'
+            ? 'Tu as d\'ailleurs déclaré un véhicule électrique dans Réglages : ' +
+              'seules les stations qui rechargent sont listées. '
+            : '') +
+          'Horaires et services : fichier officiel des prix des carburants, ' +
+          'complété par OpenStreetMap quand il ne publie rien.</p>';
       }
       /* La note décrit la liste qu'on a sous les yeux : en favoris, « les 12
          premières » serait faux, et on sait déjà d'où elles viennent.     */
@@ -2362,6 +2408,7 @@ var VTC = (function () {
     mangerEtat: mangerEtat, MANGER: MANGER, inManger: inManger,
     chercheManger: chercheManger, sansAccent: sansAccent,
     favoris: favoris, estFavori: estFavori, basculeFavori: basculeFavori,
+    vehicule: vehicule, setVehicule: setVehicule,
     route: route,
     etoile: etoile,
     ECHEANCES: ECHEANCES, echeances: echeances,
@@ -2430,6 +2477,18 @@ var VTC = (function () {
   ], VTC.navPref(), function (c) {
     VTC.setNavPref(c);
     VTC.setActiveChip(host, c);
+  });
+
+  /* ---- Ton véhicule -------------------------------------------------------
+     Deux choix, pas trois : un hybride fait le plein comme un thermique, et
+     c'est la seule question qui change la liste des stations.              */
+  var hoteVeh = document.getElementById('veh');
+  VTC.renderChips(hoteVeh, [
+    { code: 'carburant',  label: 'Carburant' },
+    { code: 'electrique', label: '⚡ Électrique' }
+  ], VTC.vehicule(), function (c) {
+    VTC.setVehicule(c);
+    VTC.setActiveChip(hoteVeh, c);
   });
 })();
 </script>
