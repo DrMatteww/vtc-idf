@@ -2612,6 +2612,22 @@ OVERPASS_LAVAGE = ('[out:json][timeout:180];'
                    'out center tags;')
 
 
+# Les pharmacies de nuit, et une précision du chauffeur qui change tout :
+# SEULEMENT celles ouvertes toute l'année, jamais les gardes tournantes —
+# le tour change trop souvent pour qu'une donnée figée soit honnête, et une
+# pharmacie fermée à trois heures du matin avec un enfant malade dans la
+# voiture, c'est pire que pas d'information du tout.
+#
+# D'où le filtre sur 24/7 dans la requête elle-même : on ne ramène que ce
+# qui est ouvert en permanence. Mesuré : 13 pharmacies en Île-de-France —
+# et les trois que le chauffeur citait de mémoire (Porte Maillot, Porte de
+# Montreuil, Pantin) y sont.
+OVERPASS_PHARMA = ('[out:json][timeout:120];'
+                   'nwr["amenity"="pharmacy"]["opening_hours"~"24/7"]'
+                   '(48.12,1.45,49.24,3.56);'
+                   'out center tags;')
+
+
 # ---- Les stations : plus d'OpenStreetMap, le fichier officiel ------------
 # Première version : toutes les stations-service d'OpenStreetMap ouvertes la
 # nuit, soit 554 points. Le chauffeur a tranché, et il avait les chiffres du
@@ -3111,6 +3127,15 @@ def fetch_lavage_osm(communes):
                             prefixe="la", forcer="lavage")
 
 
+def fetch_pharmacies_osm(communes):
+    """Pharmacies ouvertes 24h/24 toute l'année."""
+    res = overpass(OVERPASS_PHARMA, "pharmacie24")
+    if res is None:
+        return []
+    return parse_manger_osm(res, communes, adresses_osm(res),
+                            prefixe="ph", forcer="pharmacie")
+
+
 def fetch_courses_osm(communes):
     """Supérettes, supermarchés et boutiques de stations ouverts la nuit."""
     res = overpass(OVERPASS_COURSES, "courses")
@@ -3139,7 +3164,7 @@ def parse_manger_osm(res, communes, adresses=None, prefixe="mo", forcer=None):
         # Une station de lavage n'a pas de cuisine : sa catégorie est
         # imposée par l'appelant, pas devinée des étiquettes.
         if forcer:
-            cat, defaut = forcer, 'Lavage'
+            cat, defaut = forcer, 'Lavage' if forcer == 'lavage' else 'Pharmacie'
         # Les stations ne viennent plus d'OpenStreetMap mais du fichier
         # officiel des prix : on les écarte ici, y compris si une réponse
         # gardée en cache ou la graine livrée avec le projet en contient
@@ -3402,6 +3427,8 @@ def main():
         # entières, dans « Services ».
         lavages = fetch_lavage_osm(communes)
         log("  %d stations de lavage ouvertes la nuit" % len(lavages))
+        pharmacies = fetch_pharmacies_osm(communes)
+        log("  %d pharmacies ouvertes 24h/24 toute l'année" % len(pharmacies))
         aires = [x for x in stations if x.get("autoroute") and x.get("boutique")]
         log("  dont %d aires d'autoroute avec boutique, reprises dans Manger"
             % len(aires))
@@ -3414,7 +3441,7 @@ def main():
             # Les fiches du terrain d'abord : à distance égale, ce qui a été
             # vérifié par un chauffeur passe devant ce qui vient d'une base.
             "manger": a_la_main + manger_nuit + courses + aires,
-            "services": stations + lavages,
+            "services": stations + lavages + pharmacies,
         })
 
     log("terminé.")

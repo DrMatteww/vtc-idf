@@ -1480,11 +1480,18 @@ automatique, qui n'a besoin de personne. Celles sans horaires publiés sont
 écartées — une station de lavage fermée la nuit n'a rien à faire dans un outil
 de nuit.
 
-Les pastilles *Lavage* et *Pharmacie* et le format de fiche sont en place ; les
-pharmacies s'y brancheront sans toucher à l'application. Règle posée par le
-chauffeur et à ne pas oublier : **seulement celles ouvertes toute l'année**,
-jamais les gardes tournantes — le tour change trop souvent pour qu'une donnée
-figée soit honnête.
+Pour les pharmacies, la règle vient du chauffeur et elle change la requête :
+**seulement celles ouvertes toute l'année**, jamais les gardes tournantes — le
+tour change trop souvent pour qu'une donnée figée soit honnête, et une
+pharmacie fermée à trois heures du matin est pire que pas d'information. Le
+filtre `24/7` est donc posé **dans la requête Overpass elle-même**, ce qui l'a
+aussi rendue assez légère pour passer après trois échecs.
+
+**13 pharmacies en Île-de-France**, et les trois que le chauffeur citait de
+mémoire y sont : Porte Maillot, Porte de Montreuil, Pantin. S'y ajoutent
+République, place de Clichy, Porte de Vincennes, Boulevard Brune,
+Opéra-Bastille, avenue d'Italie, rue du Commerce, les Champs-Élysées, Torcy et
+Roissy-en-Brie.
 
 ### Les toilettes de parc, masquées la nuit
 
