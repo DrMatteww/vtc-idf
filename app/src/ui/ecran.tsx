@@ -6,7 +6,7 @@ import { couleurs, espaces, typo } from './theme';
 
 interface Props {
   titre: string;
-  sousTitre?: string;
+  sousTitre?: ReactNode;
   /** Le brief tient sans défilement — lui seul passe `fixe`. */
   fixe?: boolean;
   aDroite?: ReactNode;
@@ -21,7 +21,11 @@ export function Ecran({ titre, sousTitre, fixe, aDroite, children }: Props) {
     <View style={s.topbar}>
       <View style={s.titres}>
         <Text style={s.titre}>{titre}</Text>
-        {sousTitre ? <Text style={s.sousTitre}>{sousTitre}</Text> : null}
+        {typeof sousTitre === 'string' ? (
+          <Text style={s.sousTitre}>{sousTitre}</Text>
+        ) : (
+          sousTitre
+        )}
       </View>
       {aDroite}
     </View>
