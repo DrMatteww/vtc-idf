@@ -18,10 +18,10 @@ export function maintenant(): DateTime {
 }
 
 /** Convertit un instant quelconque en heure de Paris. */
-export function aParis(iso: string | Date | number): DateTime {
-  if (typeof iso === 'string') return DateTime.fromISO(iso, { zone: ZONE });
-  if (iso instanceof Date) return DateTime.fromJSDate(iso, { zone: ZONE });
-  return DateTime.fromMillis(iso, { zone: ZONE });
+export function aParis(t: string | Date | number): DateTime {
+  if (typeof t === 'string') return DateTime.fromISO(t, { zone: ZONE });
+  if (t instanceof Date) return DateTime.fromJSDate(t, { zone: ZONE });
+  return DateTime.fromMillis(t, { zone: ZONE });
 }
 
 /* ---- Les tranches de la journée ---------------------------------------
@@ -46,23 +46,89 @@ export function tranche(d: DateTime = maintenant()): Tranche {
 
 /** Fin de la tranche courante : sépare « maintenant » du « plus tard ». */
 export function finDeTranche(d: DateTime = maintenant()): DateTime {
-  const bornes = [5, 11, 14, 18, 24];
-  for (const b of bornes) {
+  for (const b of [5, 11, 14, 18, 24]) {
     if (d.hour < b) return d.startOf('day').plus({ hours: b });
   }
   return d.startOf('day').plus({ hours: 24 });
 }
 
-/* ---- Libellés ---------------------------------------------------------
-   Écrits à la main plutôt que délégués au formatage local : la casse et la
-   forme (« mercredi 28 octobre », sans l'année) sont des choix de lecture,
-   et ils ne doivent pas changer avec la langue du téléphone.              */
+/* ---- La journée du chauffeur finit à 6 h ------------------------------
+   Les arrivées de demain n'apparaissent qu'à partir de 6 h demain : à 23 h,
+   personne ne va se placer pour un TGV de 8 h du matin, et ces lignes-là
+   poussaient le reste hors de l'écran. Les événements échappent à la règle :
+   un match ou un salon de demain, ça se prépare la veille.                */
+
+export const JOURNEE_FINIT_A = 6;
+
+export function finDeJournee(now: DateTime = maintenant()): DateTime {
+  const f = now.startOf('day').plus({ hours: JOURNEE_FINIT_A });
+  return now.hour >= JOURNEE_FINIT_A ? f.plus({ days: 1 }) : f;
+}
+
+/* ---- L'horizon : aujourd'hui et demain, pas plus ----------------------
+   La billetterie publie jusqu'à dix jours à l'avance. Affichés tels quels,
+   les concerts de la semaine suivante poussaient la soirée en cours hors de
+   l'écran, pour une information sans usage au volant : personne ne se place
+   pour un match dans six jours. On coupe à la fin de la journée de DEMAIN,
+   la journée étant celle du chauffeur — elle finit à 6 h, pas à minuit. À
+   2 h, « aujourd'hui » est donc encore la nuit qu'on est en train de faire. */
+
+export const HORIZON_JOURS = 2;
+
+export function finHorizon(now: DateTime = maintenant()): DateTime {
+  const base = now.hour < JOURNEE_FINIT_A ? now.minus({ days: 1 }) : now;
+  return base
+    .startOf('day')
+    .plus({ hours: JOURNEE_FINIT_A })
+    .plus({ days: HORIZON_JOURS });
+}
+
+/* ---- La nuit en cours --------------------------------------------------
+   Une « nuit » va de 21 h à 6 h. Avant 6 h du matin on est encore dans celle
+   de la veille ; à partir de 6 h, c'est celle du soir qui vient. La bascule
+   se fait toute seule à la première ouverture après 6 h, sans rien attendre
+   du serveur : c'est l'heure du téléphone qui décide.
+
+   Conséquence voulue : la liste ne montre qu'une nuit, jamais toute la
+   semaine. Et comme il n'y en a qu'une, inutile d'écrire le jour sur chaque
+   ligne.                                                                   */
+
+export const NUIT_DE = 21;
+export const NUIT_A = 6;
+
+export interface Nuit {
+  debut: DateTime;
+  fin: DateTime;
+}
+
+export function nuitEnCours(now: DateTime = maintenant()): Nuit {
+  let debut = now.startOf('day').plus({ hours: NUIT_DE });
+  if (now.hour < NUIT_A) debut = debut.minus({ days: 1 });
+  const fin = debut.plus({ days: 1 }).startOf('day').plus({ hours: NUIT_A });
+  return { debut, fin };
+}
+
+export function dansLaNuit(now: DateTime = maintenant()): boolean {
+  return now.hour >= NUIT_DE || now.hour < NUIT_A;
+}
 
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const MOIS = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
 ];
+
+export function titreNuit(n: Nuit): string {
+  return (
+    'Nuit de ' + JOURS[n.debut.weekday - 1] + ' à ' + JOURS[n.fin.weekday - 1] +
+    ', ' + NUIT_DE + 'h → ' + NUIT_A + 'h'
+  );
+}
+
+/* ---- Libellés ---------------------------------------------------------
+   Écrits à la main plutôt que délégués au formatage local : la casse et la
+   forme (« mercredi 28 octobre », sans l'année) sont des choix de lecture,
+   et ils ne doivent pas changer avec la langue du téléphone.              */
 
 export function libelleJour(d: DateTime = maintenant()): string {
   return JOURS[d.weekday - 1] + ' ' + d.day + ' ' + MOIS[d.month - 1];
@@ -73,13 +139,38 @@ export function hhmm(d: DateTime): string {
   return d.toFormat("HH'h'mm");
 }
 
+export function minutesJusqua(iso: string, now: DateTime = maintenant()): number {
+  return Math.round(aParis(iso).diff(now, 'minutes').minutes);
+}
+
+export function compteARebours(iso: string, now: DateTime = maintenant()): string {
+  const m = minutesJusqua(iso, now);
+  if (m < -120) return 'terminé';
+  if (m < 0) return 'en cours';
+  if (m === 0) return 'maintenant';
+  if (m < 60) return 'dans ' + m + ' min';
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return 'dans ' + h + ' h' + (r ? ' ' + String(r).padStart(2, '0') : '');
+}
+
+/* Une fermeture de nuit tient dans une soirée, et le JOUR compte autant que
+   l'heure : toutes affichent « 21h00 → 06h00 », donc sans la nuit concernée
+   on ne sait pas si c'est ce soir ou mardi prochain. Une perturbation de
+   chantier, elle, dure des semaines : on écrit alors la date de fin.      */
+export function libellePeriode(de: string, a: string): string {
+  const d = aParis(de);
+  const f = aParis(a);
+  if (f.diff(d, 'hours').hours <= 20) return hhmm(d) + ' → ' + hhmm(f);
+  return 'jusqu’au ' + f.day + '/' + f.month;
+}
+
 /* ---- Le fuseau fonctionne-t-il vraiment ? -----------------------------
    Luxon s'appuie sur Intl pour résoudre un fuseau nommé. Selon le moteur
    JavaScript embarqué, Intl peut être tronqué et `setZone` échouer
    silencieusement — on se retrouve alors sur l'heure de l'appareil sans
-   aucune erreur. On vérifie donc, au lieu de supposer.
+   aucune erreur. On vérifie donc, au lieu de supposer.                    */
 
-   Appelé par l'écran Infos pendant le développement.                      */
 export interface DiagnosticFuseau {
   ok: boolean;
   zone: string;
