@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "VTC IDF",
+    "slug": "vtc-idf",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "vtcidf",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0B",
+    "primaryColor": "#FFFFFF",
+    "ios": {
+      "bundleIdentifier": "fr.vtcidf.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "UIViewControllerBasedStatusBarAppearance": false
+      }
+    },
+    "android": {
+      "package": "fr.vtcidf.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0B",
+        "foregroundImage": "./assets/images/icon-android.png",
+        "monochromeImage": "./assets/images/icon-android.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0A0B",
+          "dark": {
+            "backgroundColor": "#0A0A0B"
+          },
+          "image": "./assets/images/icon.png",
+          "imageWidth": 96
+        }
+      ],
+      "expo-font",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
