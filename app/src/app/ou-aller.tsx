@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, SectionList, StyleSheet, Text, View } from 'react-native';
+import {
+  AppState, RefreshControl, SectionList, StyleSheet, Text, View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -10,6 +12,7 @@ import { aParis, hhmm, maintenant, sectionDe } from '@/core/temps';
 import type { Demand, Dept } from '@/core/types';
 import { useDonnees } from '@/donnees/store';
 import { usePosition } from '@/reglages/position';
+import { BarreTitre } from '@/ui/barre-titre';
 import { LienGps } from '@/ui/bouton-gps';
 import { Departement, Flammes } from '@/ui/etiquettes';
 import { Pastilles } from '@/ui/pastilles';
@@ -90,6 +93,7 @@ export default function OuAller() {
 
   return (
     <SafeAreaView style={s.fond} edges={['top']}>
+      <BarreTitre />
       <View style={s.entete}>
         <Text style={s.titre}>Où aller</Text>
       </View>
@@ -105,6 +109,18 @@ export default function OuAller() {
         sections={sections}
         keyExtractor={(it) => it.id}
         stickySectionHeadersEnabled
+        refreshControl={
+          <RefreshControl
+            refreshing={briefEnCours}
+            onRefresh={() => {
+              rafraichirBrief();
+              demander(true);
+            }}
+            tintColor={couleurs.texteAtenue}
+            colors={[couleurs.accent]}
+            progressBackgroundColor={couleurs.surface}
+          />
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.liste}
         renderSectionHeader={({ section }) => (
@@ -198,7 +214,7 @@ function Note() {
 
 const s = StyleSheet.create({
   fond: { flex: 1, backgroundColor: couleurs.fond },
-  entete: { paddingHorizontal: espaces.pad, paddingTop: 20, paddingBottom: 10 },
+  entete: { paddingHorizontal: espaces.pad, paddingTop: 16, paddingBottom: 10 },
   titre: { ...typo.titre, color: couleurs.texte },
 
   filtres: { paddingLeft: espaces.pad, paddingBottom: 6 },

@@ -13,18 +13,18 @@ describe('la fraîcheur est toujours visible', () => {
   it('frais sous trois heures', () => {
     const f = fraicheur('2026-10-28T22:45+01:00', false, now);
     expect(f.perime).toBe(false);
-    expect(f.texte).toBe('à jour · 22h45');
+    expect(f.texte).toBe('situation à 22h45');
   });
 
   it('périmé au-delà', () => {
     const f = fraicheur('2026-10-28T18:00+01:00', false, now);
     expect(f.perime).toBe(true);
-    expect(f.texte).toBe('mis à jour à 18h00');
+    expect(f.texte).toBe('situation à 18h00');
   });
 
   it('le hors-ligne se dit', () => {
     expect(fraicheur('2026-10-28T22:45+01:00', true, now).texte)
-      .toBe('hors ligne · 22h45');
+      .toBe('hors ligne · situation à 22h45');
   });
 
   it('pas de date du tout : on ne prétend pas', () => {

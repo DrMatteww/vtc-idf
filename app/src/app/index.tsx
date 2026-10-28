@@ -116,6 +116,11 @@ export default function Brief() {
           ) : null}
         </View>
       }
+      onRafraichir={() => {
+        rafraichirBrief();
+        if (mode === 'autour') demander(true);
+      }}
+      rafraichit={briefEnCours}
       aDroite={
         meteo ? (
           <View style={s.meteo}>
@@ -127,6 +132,11 @@ export default function Brief() {
       <View style={s.pastilles}>
         <Pastilles liste={MODES} actif={mode} onChoisir={choisir} />
       </View>
+      {/* Dire le rayon, plutôt que de laisser deviner pourquoi la liste est
+          plus courte. */}
+      {local ? (
+        <Text style={s.rayon}>Dans un rayon de {RAYON_KM} km autour de toi.</Text>
+      ) : null}
 
       <View style={s.corps}>
         {/* La géolocalisation est facultative : si elle manque, on l'explique
@@ -285,6 +295,12 @@ function EtatVide({ enCours, erreur }: { enCours: boolean; erreur: string | null
 
 const s = StyleSheet.create({
   pastilles: { paddingLeft: espaces.pad, paddingBottom: 10 },
+  rayon: {
+    ...typo.ligneSous,
+    color: couleurs.texteMuet,
+    paddingHorizontal: espaces.pad,
+    paddingBottom: 10,
+  },
   corps: { flex: 1, paddingHorizontal: espaces.pad, gap: 10 },
 
   sousTitre: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },

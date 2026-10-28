@@ -29,7 +29,12 @@ export function fraicheur(
   const d = aParis(genereA);
   const ageMin = Math.round(now.diff(d, 'minutes').minutes);
 
-  if (depuisLeCache) return { perime: true, texte: 'hors ligne · ' + hhmm(d), ageMin };
-  if (ageMin > PERIME_MIN) return { perime: true, texte: 'mis à jour à ' + hhmm(d), ageMin };
-  return { perime: false, texte: 'à jour · ' + hhmm(d), ageMin };
+  /* « Situation à 15h33 » plutôt que « à jour · 15h33 » : c'est l'heure à
+     laquelle les données ont été calculées, et le dire ainsi donne la bonne
+     impression de fraîcheur sans rien promettre de faux. Le point coloré
+     porte le reste du message — vert sous trois heures, gris au-delà — et
+     l'heure elle-même suffit à voir si ça date de dix minutes ou de six
+     heures. */
+  if (depuisLeCache) return { perime: true, texte: 'hors ligne · situation à ' + hhmm(d), ageMin };
+  return { perime: ageMin > PERIME_MIN, texte: 'situation à ' + hhmm(d), ageMin };
 }
