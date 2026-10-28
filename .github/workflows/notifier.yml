@@ -1,0 +1,63 @@
+# Envoie une notification aux chauffeurs, depuis le back office.
+#
+# Le back office est une page STATIQUE et PUBLIQUE : elle ne peut pas porter
+# la clé Firebase. Elle déclenche donc ce workflow, et c'est la CI qui envoie,
+# la clé restant dans les secrets. Zéro serveur, et la clé reste où elle est
+# déjà pour les autres sources.
+#
+# Tant que le secret FCM_SERVICE_ACCOUNT n'existe pas, le script tourne à
+# blanc et écrit ce qu'il aurait envoyé : tout le circuit se vérifie avant
+# d'avoir un projet Firebase.
+
+name: Notification
+
+on:
+  workflow_dispatch:
+    inputs:
+      sujet:
+        description: "Sujet (tous, dept-75, dept-93…)"
+        required: true
+        default: tous
+      titre:
+        description: "Titre (60 caractères max)"
+        required: true
+      message:
+        description: "Message (180 caractères max)"
+        required: true
+
+jobs:
+  envoyer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # google-auth sert UNIQUEMENT à signer le jeton OAuth2 : la bibliothèque
+      # standard ne sait pas faire de RS256. build_data.py, lui, reste sans
+      # aucune dépendance — c'est ce qui le rend exécutable n'importe où.
+      - name: Dépendance de signature
+        run: pip install --quiet google-auth
+
+      - name: Trouver l'application
+        id: app
+        run: |
+          if [ -d vtc-app/scripts ]; then echo "dir=vtc-app" >> "$GITHUB_OUTPUT";
+          else echo "dir=." >> "$GITHUB_OUTPUT"; fi
+
+      - name: Envoyer
+        env:
+          FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
+        run: |
+          python3 ${{ steps.app.outputs.dir }}/scripts/notifier.py \
+            --sujet   "${{ inputs.sujet }}" \
+            --titre   "${{ inputs.titre }}" \
+            --message "${{ inputs.message }}"
+
+      - name: Trace
+        run: |
+          echo "### Notification" >> "$GITHUB_STEP_SUMMARY"
+          echo "- sujet : \`${{ inputs.sujet }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- titre : ${{ inputs.titre }}" >> "$GITHUB_STEP_SUMMARY"

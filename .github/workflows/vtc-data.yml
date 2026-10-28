@@ -117,6 +117,16 @@ jobs:
       - name: Copier la feuille de style et le script
         run: cp ${{ steps.app.outputs.dir }}/cdn/app.css ${{ steps.app.outputs.dir }}/cdn/app.js public/
 
+      # Le back office est servi par la même Pages que les données. Il est
+      # public — c'est une page statique — mais il ne peut RIEN faire sans
+      # jeton : la serrure est le jeton, pas l'adresse.
+      - name: Copier le back office
+        run: |
+          if [ -d backoffice ]; then
+            mkdir -p public/backoffice
+            cp -r backoffice/. public/backoffice/
+          fi
+
       - name: Publier
         uses: peaceiris/actions-gh-pages@v4
         with:

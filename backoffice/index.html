@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>QLN — back office</title>
+<!--
+  ============================================================================
+  BACK OFFICE QLN — aucun serveur.
+
+  Cette page est STATIQUE. Elle lit et écrit les fichiers CSV du dépôt par
+  l'API GitHub, avec un jeton que tu colles une fois et qui reste dans CE
+  navigateur. Chaque enregistrement est un commit : l'historique des
+  modifications est l'historique Git, on voit qui a changé quoi et on revient
+  en arrière.
+
+  Le montage du produit ne change pas :
+
+     back office  →  les CSV sources  →  build_data.py  →  les JSON  →  l'app
+        (toi)          (le dépôt)         (l'Action)       (Pages)    (lecteur)
+
+  Le back office se branche EN AMONT du générateur, jamais entre le générateur
+  et l'application. C'est ce qui préserve le « zéro serveur ».
+
+  La page est publique — elle est servie par GitHub Pages — mais elle ne peut
+  RIEN faire sans jeton. Le jeton est la serrure, pas l'adresse.
+  ============================================================================
+-->
+<style>
+  :root{
+    --bg:#0A0A0B; --surface:#121214; --surface-2:#1B1B1F;
+    --line:#2A2A31; --line-soft:#1E1E23;
+    --text:#F4F4F5; --dim:#9A9AA3; --mute:#63636C;
+    --accent:#FFFFFF; --ink:#0A0A0B;
+    --alert:#FF4433; --alert-bg:#2B100C; --alert-line:#5A1F18;
+    --ok:#35D07F; --ok-bg:#0D2418;
+    --r:3px; --r-sm:2px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:Barlow,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-size:15px;line-height:1.45;
+  }
+  header{
+    position:sticky;top:0;z-index:10;background:var(--bg);
+    border-bottom:1px solid var(--line);padding:14px 16px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .marque{font-weight:700;font-size:20px;letter-spacing:.5px}
+  .marque span{color:var(--mute);font-weight:500;font-size:13px;letter-spacing:0}
+  nav{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
+  nav button{
+    background:none;border:1px solid transparent;color:var(--dim);
+    font:inherit;font-size:13px;padding:7px 11px;border-radius:var(--r-sm);cursor:pointer;
+  }
+  nav button:hover{color:var(--text)}
+  nav button[aria-current="true"]{background:var(--accent);color:var(--ink);font-weight:600}
+  main{padding:16px;max-width:1200px;margin:0 auto}
+  h2{font-size:17px;margin:0 0 4px}
+  .lead{color:var(--dim);font-size:13.5px;margin:0 0 14px;max-width:70ch}
+  .carte{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px;margin-bottom:14px;
+  }
+  label{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--mute);font-weight:700;margin-bottom:5px}
+  input,select,textarea{
+    width:100%;background:var(--bg);color:var(--text);
+    border:1px solid var(--line);border-radius:var(--r-sm);
+    padding:8px 9px;font:inherit;font-size:14px;
+  }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--dim)}
+  textarea{min-height:60px;resize:vertical}
+  button.b{
+    background:var(--accent);color:var(--ink);border:0;border-radius:var(--r-sm);
+    padding:9px 14px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;
+  }
+  button.b:disabled{opacity:.4;cursor:default}
+  button.g{background:none;color:var(--text);border:1px solid var(--line)}
+  button.d{background:none;color:var(--alert);border:1px solid var(--alert-line)}
+  .barre{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+  .pousse{margin-left:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{
+    text-align:left;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;
+    color:var(--mute);font-weight:700;padding:8px 6px;border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  td{padding:5px 6px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  tr.off td{opacity:.42}
+  td input,td select,td textarea{padding:6px 7px;font-size:13.5px}
+  .mini{font-size:12px;color:var(--mute)}
+  .msg{padding:10px 12px;border-radius:var(--r-sm);font-size:13.5px;margin:10px 0}
+  .msg.ok{background:var(--ok-bg);border:1px solid #1C4A33;color:var(--ok)}
+  .msg.ko{background:var(--alert-bg);border:1px solid var(--alert-line);color:#FF8574}
+  .msg.info{background:var(--surface-2);border:1px solid var(--line);color:var(--dim)}
+  .deux{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .champ{margin-bottom:12px}
+  code{background:var(--surface-2);padding:1px 5px;border-radius:2px;font-size:12.5px}
+  .scroll{overflow-x:auto}
+  @media(max-width:700px){.deux{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="marque">QLN <span>back office</span></div>
+  <nav id="nav"></nav>
+</header>
+
+<main id="vue"></main>
+
+<script>
+'use strict';
+
+/* ==========================================================================
+   Le dépôt, et rien d'autre à configurer.
+   ========================================================================== */
+const DEPOT  = 'DrMatteww/vtc-idf';
+const BRANCHE = 'main';
+const DOSSIER = 'vtc-app/scripts/sources/';
+const WF_DONNEES = 'vtc-data.yml';
+const WF_NOTIF   = 'notifier.yml';
+
+const DEPTS = ['', '75', '77', '78', '91', '92', '93', '94', '95'];
+
+/* Les salles connues du générateur. Le code est ce qui part dans le CSV ;
+   le nom n'est là que pour qu'on s'y retrouve. */
+const SALLES = [
+  ['bercy', 'Accor Arena'], ['defense', 'Plenitude Arena'], ['sdf', 'Stade de France'],
+  ['pdp', 'Parc des Princes'], ['adidas', 'Adidas Arena'], ['zenith', 'Zénith La Villette'],
+  ['seine', 'La Seine Musicale'], ['jeanbouin', 'Stade Jean-Bouin'], ['rg', 'Roland-Garros'],
+  ['charlety', 'Charléty'], ['manoir', 'Yves-du-Manoir'], ['longchamp', 'ParisLongchamp'],
+  ['pdv', 'Porte de Versailles'], ['arenagp', 'Arena Grand Paris'],
+  ['villepinte', 'Villepinte'], ['bourget', 'Le Bourget'],
+];
+
+/* ==========================================================================
+   Les fichiers éditables, décrits une fois.
+
+   Un schéma par colonne : c'est lui qui fait le tableau, les listes
+   déroulantes et les valeurs par défaut. Ajouter une colonne au CSV, c'est
+   ajouter une ligne ici — pas réécrire un écran.
+   ========================================================================== */
+const texte = (cle, titre, large) => ({ cle, titre, type: 'text', large });
+const liste = (cle, titre, options) => ({ cle, titre, type: 'select', options });
+const ouinon = (cle, titre) => liste(cle, titre, [['', '—'], ['oui', 'oui'], ['non', 'non']]);
+const actif = () => liste('actif', 'Actif', [['1', 'oui'], ['0', 'non']]);
+
+const FICHIERS = {
+  evenements: {
+    titre: 'Événements',
+    fichier: 'evenements.csv',
+    lead: 'La source la plus fiable du produit : elle est prioritaire sur les billetteries, ' +
+          'qui ne couvrent ni le Stade de France ni La Seine Musicale. ' +
+          'L’heure de FIN est celle qui compte — c’est à la sortie que la demande arrive.',
+    colonnes: [
+      { cle: 'date', titre: 'Date', type: 'date' },
+      { cle: 'fin', titre: 'Fin', type: 'time' },
+      liste('type', 'Type', [['concert', 'concert'], ['sport', 'sport'], ['salon', 'salon']]),
+      texte('titre', 'Titre', true),
+      liste('salle', 'Salle', [['', '—'], ...SALLES.map(([c, n]) => [c, n])]),
+      { cle: 'jauge', titre: 'Jauge', type: 'number' },
+      texte('note', 'Note'),
+      actif(),
+    ],
+    neuf: () => ({ date: new Date().toISOString().slice(0, 10), fin: '23:00', type: 'concert', titre: '', salle: 'bercy', jauge: '', note: '', actif: '1' }),
+  },
+
+  astuces: {
+    titre: 'Astuces',
+    fichier: 'astuces.csv',
+    lead: 'Le carnet du chauffeur, celui qu’aucun concurrent n’aura : lieux où patienter, ' +
+          'heures creuses, entrées à éviter. Une astuce sans coordonnées se lit, c’est tout — ' +
+          'lat et lon ne sont pas obligatoires.',
+    colonnes: [
+      texte('titre', 'Titre', true),
+      { cle: 'texte', titre: 'Texte', type: 'textarea' },
+      liste('dept', 'Dept', DEPTS.map((d) => [d, d || '—'])),
+      texte('lat', 'Lat'), texte('lon', 'Lon'),
+      actif(),
+    ],
+    neuf: () => ({ titre: '', texte: '', dept: '', lat: '', lon: '', actif: '1' }),
+  },
+
+  manger: {
+    titre: 'Manger',
+    fichier: 'manger.csv',
+    lead: 'Les adresses relevées à la main, celles qu’OpenStreetMap ne connaît pas — ' +
+          'et surtout PARKING, TOILETTES et PRIX, les trois attributs qu’aucune carte ' +
+          'grand public ne donne et qui font la valeur des fiches.',
+    colonnes: [
+      texte('nom', 'Nom', true), texte('adresse', 'Adresse', true),
+      liste('dept', 'Dept', DEPTS.map((d) => [d, d || '—'])),
+      texte('lat', 'Lat'), texte('lon', 'Lon'),
+      texte('horaires', 'Horaires', true),
+      liste('type', 'Type', [['chaine', 'chaîne'], ['sandwich', 'grec · sandwich'],
+        ['pizza', 'pizza'], ['super', 'supérette'], ['station', 'station'], ['autre', 'autre']]),
+      ouinon('parking', 'Parking'), ouinon('toilettes', 'WC'),
+      liste('prix', 'Prix', [['', '—'], ['€', '€'], ['€€', '€€'], ['€€€', '€€€']]),
+      actif(),
+    ],
+    neuf: () => ({ nom: '', adresse: '', dept: '', lat: '', lon: '', horaires: '', type: 'sandwich', parking: '', toilettes: '', prix: '', actif: '1' }),
+  },
+
+  fermetures: {
+    titre: 'Fermetures',
+    fichier: 'fermetures.csv',
+    lead: 'À n’utiliser que pour ce que Sytadin ne publie pas. Rappel : seules les ' +
+          'fermetures NOCTURNES sont affichées — ce qui est coupé en permanence, les GPS ' +
+          'le savent déjà et dévient tout seuls.',
+    colonnes: [
+      texte('id', 'Id'), texte('titre', 'Titre', true), texte('detail', 'Détail', true),
+      liste('dept', 'Dept', DEPTS.map((d) => [d, d || '—'])),
+      { cle: 'heure_debut', titre: 'De', type: 'time' },
+      { cle: 'heure_fin', titre: 'À', type: 'time' },
+      texte('jours', 'Jours'),
+      { cle: 'valide_jusqu_au', titre: 'Jusqu’au', type: 'date' },
+      actif(),
+    ],
+    neuf: () => ({ id: '', titre: '', detail: '', dept: '', heure_debut: '21:00', heure_fin: '05:00', jours: 'lun-ven', valide_jusqu_au: '', actif: '1' }),
+  },
+};
+
+/* ==========================================================================
+   Le jeton. Il vit dans CE navigateur et nulle part ailleurs.
+   ========================================================================== */
+const CLE_JETON = 'qln_gh_token';
+const jeton = () => { try { return localStorage.getItem(CLE_JETON) || ''; } catch (e) { return ''; } };
+const setJeton = (v) => { try { v ? localStorage.setItem(CLE_JETON, v) : localStorage.removeItem(CLE_JETON); } catch (e) {} };
+
+/* ==========================================================================
+   L'API GitHub
+   ========================================================================== */
+async function gh(chemin, options) {
+  const r = await fetch('https://api.github.com' + chemin, {
+    ...options,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: 'Bearer ' + jeton(),
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(options && options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...((options && options.headers) || {}),
+    },
+  });
+  if (r.status === 204) return null;
+  const corps = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(corps.message || ('HTTP ' + r.status));
+  return corps;
+}
+
+/* L'API renvoie du base64 : il faut repasser par UTF-8, sinon les accents
+   deviennent du charabia au premier enregistrement. */
+const versTexte = (b64) =>
+  new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, '')), (c) => c.charCodeAt(0)));
+const versB64 = (s) => {
+  const o = new TextEncoder().encode(s);
+  let bin = '';
+  o.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+};
+
+const lireFichier = (nom) =>
+  gh('/repos/' + DEPOT + '/contents/' + DOSSIER + nom + '?ref=' + BRANCHE);
+
+const ecrireFichier = (nom, contenu, sha, message) =>
+  gh('/repos/' + DEPOT + '/contents/' + DOSSIER + nom, {
+    method: 'PUT',
+    body: JSON.stringify({ message, content: versB64(contenu), sha, branch: BRANCHE }),
+  });
+
+const lancerWorkflow = (fichier, inputs) =>
+  gh('/repos/' + DEPOT + '/actions/workflows/' + fichier + '/dispatches', {
+    method: 'POST',
+    body: JSON.stringify({ ref: BRANCHE, inputs: inputs || {} }),
+  });
+
+/* ==========================================================================
+   Le CSV, point-virgule, avec ses commentaires préservés.
+
+   Les lignes qui commencent par # portent des explications écrites à la main :
+   les perdre à l'enregistrement, ce serait effacer la mémoire du fichier.
+   ========================================================================== */
+function lireCsv(texte) {
+  const lignes = texte.replace(/\r/g, '').split('\n');
+  const entete = [];
+  let i = 0;
+  while (i < lignes.length && (lignes[i].startsWith('#') || lignes[i].trim() === '')) {
+    entete.push(lignes[i]); i++;
+  }
+  const colonnes = (lignes[i] || '').split(';');
+  i++;
+  const rangs = [];
+  for (; i < lignes.length; i++) {
+    const l = lignes[i];
+    if (l.trim() === '') continue;
+    if (l.startsWith('#')) { entete.push(l); continue; }
+    const cases = l.split(';');
+    const o = {};
+    colonnes.forEach((c, k) => { o[c] = (cases[k] ?? '').trim(); });
+    rangs.push(o);
+  }
+  return { entete, colonnes, rangs };
+}
+
+function ecrireCsv(d) {
+  const lignes = [...d.entete, d.colonnes.join(';')];
+  d.rangs.forEach((r) => {
+    lignes.push(d.colonnes.map((c) => String(r[c] ?? '').replace(/;/g, ',')).join(';'));
+  });
+  return lignes.join('\n') + '\n';
+}
+
+/* ==========================================================================
+   L'interface
+   ========================================================================== */
+const $ = (s, r) => (r || document).querySelector(s);
+const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+let onglet = 'evenements';
+let donnees = null;   // { sha, csv }
+let modifie = false;
+
+const ONGLETS = [
+  ...Object.keys(FICHIERS).map((k) => [k, FICHIERS[k].titre]),
+  ['notif', 'Notifications'],
+  ['jeton', 'Accès'],
+];
+
+function dessinerNav() {
+  $('#nav').innerHTML = ONGLETS.map(([k, t]) =>
+    '<button data-k="' + k + '" aria-current="' + (k === onglet) + '">' + esc(t) + '</button>').join('');
+  $('#nav').onclick = (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (modifie && !confirm('Des modifications ne sont pas enregistrées. Quitter quand même ?')) return;
+    onglet = b.dataset.k; modifie = false; donnees = null;
+    dessinerNav(); dessiner();
+  };
+}
+
+function message(type, texte) {
+  return '<div class="msg ' + type + '">' + texte + '</div>';
+}
+
+function dessiner() {
+  if (onglet === 'jeton') return vueJeton();
+  if (!jeton()) {
+    $('#vue').innerHTML =
+      '<div class="carte"><h2>Il faut un jeton</h2>' +
+      '<p class="lead">Le back office n’a pas de serveur : il écrit directement dans le dépôt, ' +
+      'avec un jeton GitHub que tu colles une fois. Va dans <b>Accès</b>.</p></div>';
+    return;
+  }
+  if (onglet === 'notif') return vueNotif();
+  return vueFichier();
+}
+
+/* ---- Accès ------------------------------------------------------------- */
+function vueJeton() {
+  $('#vue').innerHTML =
+    '<div class="carte">' +
+    '<h2>Accès</h2>' +
+    '<p class="lead">Cette page ne stocke rien et n’appelle aucun serveur à nous : elle parle ' +
+    'directement à GitHub. Le jeton reste dans <b>ce navigateur</b>, sur cet appareil. ' +
+    'Si tu te sers d’un ordinateur partagé, retire-le en partant.</p>' +
+    '<div class="champ"><label>Jeton GitHub</label>' +
+    '<input id="tok" type="password" placeholder="github_pat_…" value="' + esc(jeton()) + '"></div>' +
+    '<div class="barre"><button class="b" id="save">Enregistrer</button>' +
+    '<button class="b g" id="test">Vérifier l’accès</button>' +
+    '<button class="b d pousse" id="clear">Retirer de cet appareil</button></div>' +
+    '<div id="res"></div>' +
+    '<p class="lead" style="margin-top:14px">Crée un jeton <b>« fine-grained »</b> limité au seul ' +
+    'dépôt <code>' + DEPOT + '</code>, avec <code>Contents: read and write</code> (éditer les CSV) ' +
+    'et <code>Actions: read and write</code> (lancer la régénération et les notifications). ' +
+    'Mets-lui une date d’expiration courte : il se recrée en deux minutes.</p>' +
+    '</div>';
+
+  $('#save').onclick = () => { setJeton($('#tok').value.trim()); $('#res').innerHTML = message('ok', 'Jeton enregistré dans ce navigateur.'); };
+  $('#clear').onclick = () => { setJeton(''); $('#tok').value = ''; $('#res').innerHTML = message('info', 'Jeton retiré de cet appareil.'); };
+  $('#test').onclick = async () => {
+    setJeton($('#tok').value.trim());
+    $('#res').innerHTML = message('info', 'Vérification…');
+    try {
+      const d = await gh('/repos/' + DEPOT);
+      $('#res').innerHTML = message('ok', 'Accès confirmé sur <b>' + esc(d.full_name) + '</b>.');
+    } catch (e) {
+      $('#res').innerHTML = message('ko', 'Refusé : ' + esc(e.message));
+    }
+  };
+}
+
+/* ---- Un fichier CSV ---------------------------------------------------- */
+async function vueFichier() {
+  const cfg = FICHIERS[onglet];
+  $('#vue').innerHTML = '<div class="carte"><h2>' + esc(cfg.titre) + '</h2>' +
+    '<p class="lead">' + cfg.lead + '</p>' +
+    '<div id="zone">' + message('info', 'Chargement de ' + cfg.fichier + '…') + '</div></div>';
+
+  try {
+    const f = await lireFichier(cfg.fichier);
+    donnees = { sha: f.sha, csv: lireCsv(versTexte(f.content)) };
+    rendreTable();
+  } catch (e) {
+    $('#zone').innerHTML = message('ko', 'Lecture impossible : ' + esc(e.message));
+  }
+}
+
+function rendreTable() {
+  const cfg = FICHIERS[onglet];
+  const cols = cfg.colonnes;
+
+  const th = cols.map((c) => '<th>' + esc(c.titre) + '</th>').join('') + '<th></th>';
+  const tr = donnees.csv.rangs.map((r, i) => {
+    const off = String(r.actif) === '0';
+    const tds = cols.map((c) => '<td>' + champ(c, r[c.cle], i) + '</td>').join('');
+    return '<tr class="' + (off ? 'off' : '') + '" data-i="' + i + '">' + tds +
+      '<td><button class="b d" data-sup="' + i + '" title="Supprimer la ligne">✕</button></td></tr>';
+  }).join('');
+
+  $('#zone').innerHTML =
+    '<div class="barre">' +
+      '<button class="b g" id="ajouter">+ Ajouter une ligne</button>' +
+      '<span class="mini" id="etat">' + donnees.csv.rangs.length + ' ligne(s)</span>' +
+      '<button class="b pousse" id="enreg" disabled>Enregistrer</button>' +
+    '</div>' +
+    '<div class="scroll"><table><thead><tr>' + th + '</tr></thead><tbody>' + tr + '</tbody></table></div>' +
+    '<div id="res"></div>' +
+    '<p class="lead" style="margin-top:12px">Enregistrer crée un commit. Les données ne changeront ' +
+    'dans l’application qu’après la régénération — au prochain quart d’heure, ou tout de suite ' +
+    'avec le bouton ci-dessous.</p>' +
+    '<button class="b g" id="regen">Régénérer les données maintenant</button>';
+
+  const zone = $('#zone');
+  zone.addEventListener('input', (e) => {
+    const t = e.target;
+    if (!t.dataset.cle) return;
+    donnees.csv.rangs[+t.dataset.i][t.dataset.cle] = t.value;
+    if (t.dataset.cle === 'actif') {
+      t.closest('tr').className = t.value === '0' ? 'off' : '';
+    }
+    salir();
+  });
+  zone.addEventListener('click', (e) => {
+    const s = e.target.closest('[data-sup]');
+    if (!s) return;
+    if (!confirm('Supprimer cette ligne ?')) return;
+    donnees.csv.rangs.splice(+s.dataset.sup, 1);
+    rendreTable(); salir();
+  });
+
+  $('#ajouter').onclick = () => {
+    donnees.csv.rangs.push(cfg.neuf());
+    rendreTable(); salir();
+  };
+  $('#enreg').onclick = enregistrer;
+  $('#regen').onclick = async () => {
+    $('#res').innerHTML = message('info', 'Lancement…');
+    try {
+      await lancerWorkflow(WF_DONNEES, {});
+      $('#res').innerHTML = message('ok', 'Régénération lancée. Compte une trentaine de secondes, ' +
+        'plus jusqu’à dix minutes de cache côté Pages.');
+    } catch (e) {
+      $('#res').innerHTML = message('ko', 'Échec : ' + esc(e.message));
+    }
+  };
+}
+
+function salir() {
+  modifie = true;
+  const b = $('#enreg');
+  if (b) { b.disabled = false; b.textContent = 'Enregistrer •'; }
+}
+
+function champ(c, valeur, i) {
+  const a = 'data-cle="' + c.cle + '" data-i="' + i + '"';
+  if (c.type === 'select') {
+    return '<select ' + a + '>' + c.options.map(([v, t]) =>
+      '<option value="' + esc(v) + '"' + (String(valeur ?? '') === String(v) ? ' selected' : '') + '>' +
+      esc(t) + '</option>').join('') + '</select>';
+  }
+  if (c.type === 'textarea') return '<textarea ' + a + '>' + esc(valeur) + '</textarea>';
+  const type = c.type === 'number' ? 'number' : c.type === 'date' ? 'date' : c.type === 'time' ? 'time' : 'text';
+  const w = c.large ? '' : ' style="min-width:80px"';
+  return '<input ' + a + ' type="' + type + '" value="' + esc(valeur) + '"' + w + '>';
+}
+
+async function enregistrer() {
+  const cfg = FICHIERS[onglet];
+  $('#res').innerHTML = message('info', 'Enregistrement…');
+  try {
+    const r = await ecrireFichier(
+      cfg.fichier, ecrireCsv(donnees.csv), donnees.sha,
+      'Back office : ' + cfg.titre.toLowerCase() + ' (' + donnees.csv.rangs.length + ' lignes)',
+    );
+    donnees.sha = r.content.sha;
+    modifie = false;
+    $('#enreg').disabled = true; $('#enreg').textContent = 'Enregistrer';
+    $('#res').innerHTML = message('ok', 'Enregistré. Commit <code>' + esc(r.commit.sha.slice(0, 7)) + '</code>.');
+  } catch (e) {
+    /* Le sha a bougé : quelqu'un — ou l'Action — a écrit entre-temps. On ne
+       force jamais : on le dit et on recharge. */
+    $('#res').innerHTML = message('ko', 'Échec : ' + esc(e.message) +
+      (String(e.message).includes('does not match') ? ' — le fichier a changé entre-temps, recharge l’onglet.' : ''));
+  }
+}
+
+/* ---- Notifications ----------------------------------------------------- */
+function vueNotif() {
+  const sujets = [['tous', 'Tous les chauffeurs'],
+    ...['75', '77', '78', '91', '92', '93', '94', '95'].map((d) => ['dept-' + d, 'Département ' + d])];
+
+  $('#vue').innerHTML =
+    '<div class="carte"><h2>Envoyer une notification</h2>' +
+    '<p class="lead">Elle part vers un <b>sujet</b>, pas vers des personnes : l’appareil s’abonne ' +
+    'lui-même à « tous » et à son département. Il n’y a donc aucune base d’utilisateurs, aucun ' +
+    'jeton d’appareil conservé, et personne à ficher. Un chauffeur qui ne veut rien recevoir se ' +
+    'désabonne, et il n’a jamais existé pour nous.</p>' +
+    '<div class="deux">' +
+      '<div class="champ"><label>Sujet</label><select id="sujet">' +
+        sujets.map(([v, t]) => '<option value="' + v + '">' + esc(t) + '</option>').join('') +
+      '</select></div>' +
+      '<div class="champ"><label>Titre</label><input id="titre" maxlength="60" placeholder="Grève RATP demain"></div>' +
+    '</div>' +
+    '<div class="champ"><label>Message</label>' +
+    '<textarea id="corps" maxlength="180" placeholder="Métro et RER très perturbés toute la journée. Prévois des courses longues."></textarea></div>' +
+    '<div class="barre"><button class="b" id="envoyer">Envoyer</button>' +
+    '<span class="mini">Une notification ne se rattrape pas. Relis avant d’appuyer.</span></div>' +
+    '<div id="res"></div>' +
+    '<p class="lead" style="margin-top:14px">L’envoi passe par une Action GitHub : la clé Firebase ' +
+    'reste dans les secrets de la CI et n’entre jamais dans cette page, qui est publique. ' +
+    'Tant que le secret <code>FCM_SERVICE_ACCOUNT</code> n’est pas en place, l’Action tourne à ' +
+    'blanc et écrit ce qu’elle aurait envoyé — de quoi tout vérifier avant la première vraie.</p>' +
+    '</div>';
+
+  $('#envoyer').onclick = async () => {
+    const titre = $('#titre').value.trim();
+    const corps = $('#corps').value.trim();
+    const sujet = $('#sujet').value;
+    if (!titre || !corps) { $('#res').innerHTML = message('ko', 'Titre et message sont obligatoires.'); return; }
+    if (!confirm('Envoyer « ' + titre +' » à « ' + sujet + ' » ?')) return;
+    $('#res').innerHTML = message('info', 'Envoi…');
+    try {
+      await lancerWorkflow(WF_NOTIF, { sujet, titre, message: corps });
+      $('#res').innerHTML = message('ok', 'Demandé. Suis l’exécution dans l’onglet Actions du dépôt.');
+    } catch (e) {
+      $('#res').innerHTML = message('ko', 'Échec : ' + esc(e.message));
+    }
+  };
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (modifie) { e.preventDefault(); e.returnValue = ''; }
+});
+
+dessinerNav();
+dessiner();
+</script>
+</body>
+</html>
