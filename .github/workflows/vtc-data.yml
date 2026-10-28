@@ -117,6 +117,13 @@ jobs:
       - name: Copier la feuille de style et le script
         run: cp ${{ steps.app.outputs.dir }}/cdn/app.css ${{ steps.app.outputs.dir }}/cdn/app.js public/
 
+      # Le contenu de l'onglet Infos : écrit par le back office, copié tel
+      # quel. Pas de génération, pas de transformation — c'est volontaire :
+      # ce que le chauffeur a écrit est ce que l'application affiche.
+      - name: Copier le contenu éditorial
+        run: |
+          if [ -f contenu/infos.json ]; then cp contenu/infos.json public/data/infos.json; fi
+
       # Le back office est servi par la même Pages que les données. Il est
       # public — c'est une page statique — mais il ne peut RIEN faire sans
       # jeton : la serrure est le jeton, pas l'adresse.

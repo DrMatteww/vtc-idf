@@ -2344,9 +2344,25 @@ OVERPASS_WC = ('[out:json][timeout:180];'
                'nwr["amenity"="toilets"](48.12,1.45,49.24,3.56);'
                'out center tags;')
 
-# Un « access » absent veut dire ouvert à tous dans la pratique ; on écarte
-# les toilettes de clients, privées ou réservées.
-WC_ACCESS_OK = ("", "yes", "public", "permissive")
+# On n'accepte QUE ce qui est explicitement ouvert à tous.
+#
+# L'ancienne règle acceptait aussi un « access » absent, en supposant qu'une
+# absence valait « ouvert à tous dans la pratique ». Le terrain dit le
+# contraire : relevé à Choisy-le-Roi, sur 28 toilettes OpenStreetMap du
+# secteur, 16 n'ont AUCUN tag — et ce sont celles des cimetières, des
+# bibliothèques et des écoles. Le chauffeur était envoyé contre une grille,
+# ou dans un hall qu'il n'a pas le droit de traverser.
+#
+# Le nom ne permet pas de les reconnaître : en banlieue, OpenStreetMap ne
+# nomme pas ces points, et le générateur leur donne leur adresse comme nom.
+# Rien, côté application, ne peut donc rattraper l'erreur : elle se corrige
+# ici ou nulle part.
+#
+# Conséquence assumée : la couverture de banlieue baisse nettement. C'est le
+# bon arbitrage — « mieux vaut en montrer moins que faire rouler quelqu'un
+# pour rien » — et l'application comble le trou autrement, en proposant la
+# station-service la plus proche dont les toilettes sont confirmées.
+WC_ACCESS_OK = ("yes", "public", "permissive")
 
 
 # --------------------------------------------------------------------------

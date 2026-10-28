@@ -15,7 +15,7 @@ export function Flammes({ volume }: { volume: number | null | undefined }) {
   return (
     <View style={[s.tag, n === 2 && s.flam2, n === 3 && s.flam3]}>
       {/* letterSpacing négatif : les flammes se touchent, elles font bloc */}
-      <Text style={s.flammes}>{'🔥'.repeat(n)}</Text>
+      <Text style={s.flammes} numberOfLines={1}>{'🔥'.repeat(n)}</Text>
     </View>
   );
 }
@@ -55,6 +55,8 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
     color: couleurs.texteAtenue,
   },
+  /* Une flamme fait environ 11 px de large une fois resserrée : sans
+     cette ligne, trois flammes se coupaient dans une colonne étroite. */
   flammes: { fontSize: 10, letterSpacing: -1, color: couleurs.texte },
   flam2: { borderColor: '#5E251E' },
   flam3: { borderColor: couleurs.alerte, backgroundColor: couleurs.alerteFond },

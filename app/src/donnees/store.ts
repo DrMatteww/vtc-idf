@@ -8,8 +8,9 @@
 
 import { create } from 'zustand';
 
+import { type Infos, INFOS_PAR_DEFAUT, lireInfos } from '@/core/infos';
 import type { Brief, Lieux, Zones } from '@/core/types';
-import { chargerBrief, chargerLieux, chargerZones } from './source';
+import { chargerBrief, chargerInfos, chargerLieux, chargerZones } from './source';
 
 type Erreur = 'reseau' | 'delai' | 'illisible' | null;
 
@@ -24,10 +25,14 @@ interface EtatDonnees {
   lieuxEnCours: boolean;
 
   zones: Zones | null;
+  /** Jamais nul : le repli du code s'applique tant que rien n'est chargé. */
+  infos: Infos;
+  infosChargees: boolean;
 
   rafraichirBrief: () => Promise<void>;
   assurerLieux: () => Promise<void>;
   assurerZones: () => Promise<void>;
+  assurerInfos: () => Promise<void>;
 }
 
 export const useDonnees = create<EtatDonnees>((set, get) => ({
@@ -41,6 +46,8 @@ export const useDonnees = create<EtatDonnees>((set, get) => ({
   lieuxEnCours: false,
 
   zones: null,
+  infos: INFOS_PAR_DEFAUT,
+  infosChargees: false,
 
   async rafraichirBrief() {
     if (get().briefEnCours) return;
@@ -71,5 +78,13 @@ export const useDonnees = create<EtatDonnees>((set, get) => ({
     if (get().zones) return;
     const r = await chargerZones();
     if (r.donnees) set({ zones: r.donnees });
+  },
+
+  async assurerInfos() {
+    if (get().infosChargees) return;
+    const r = await chargerInfos();
+    /* Pas de fichier, pas de réseau, fichier abîmé : on garde le repli. Un
+       onglet Infos figé vaut mieux qu'un onglet Infos vide. */
+    set({ infos: r.donnees ? lireInfos(r.donnees) : get().infos, infosChargees: true });
   },
 }));

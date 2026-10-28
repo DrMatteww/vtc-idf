@@ -1,0 +1,34 @@
+{
+  "_lisez_moi": "Le contenu de l'onglet Infos. Édité par le back office, copié tel quel dans public/data/infos.json par l'Action, et lu par l'application. Un bloc 'module' est interactif et vit dans le code (échéances, réglages, barème des flammes, sources) : on peut le déplacer ou le masquer, pas le réécrire. Un bloc 'texte' est entièrement libre. Le gras s'écrit entre doubles astérisques. Si ce fichier manque ou est abîmé, l'application retombe sur le contenu inscrit dans son code : elle n'est jamais vide.",
+  "blocs": [
+    { "id": "echeances", "type": "module", "module": "echeances", "actif": true },
+    { "id": "gps", "type": "module", "module": "gps", "actif": true },
+    { "id": "vehicule", "type": "module", "module": "vehicule", "actif": true },
+    {
+      "id": "gratuit",
+      "type": "texte",
+      "titre": "Pourquoi c’est gratuit",
+      "actif": true,
+      "paragraphes": [
+        "L’appli est **gratuite, et le restera**. Pas d’abonnement, pas de version payante.",
+        "Elle est financée par de la **publicité**. C’est ce qui paie l’hébergement et le temps passé à tenir les données à jour. Tu le sais dès l’installation, il n’y a rien de caché là-dedans.",
+        "L’objectif à terme : remplacer la pub par des **réductions négociées pour les chauffeurs** — lavage, pneus, entretien, assurance. Plus on est nombreux, plus ça devient possible."
+      ]
+    },
+    {
+      "id": "fichage",
+      "type": "texte",
+      "titre": "Pas de compte, pas de fichage",
+      "actif": true,
+      "paragraphes": [
+        "Aucune inscription n’est demandée. **Pas de nom, pas de numéro, pas de plaque.**",
+        "**Nous** n’avons ni compte, ni serveur, ni base de données, et nous ne recevons rien de ton téléphone. L’appli ne sait pas qui tu es et n’enregistre pas tes trajets. Ta position sert uniquement à trier les lieux par distance, sur ton téléphone, et ne nous est jamais envoyée.",
+        "**La régie publicitaire**, elle, collecte des données pour choisir les annonces — et c’est ce qui permet que l’application reste gratuite. Tu peux refuser : les annonces deviennent moins pertinentes, et rien d’autre ne change."
+      ]
+    },
+    { "id": "suggestions", "type": "module", "module": "suggestions", "actif": true },
+    { "id": "flammes", "type": "module", "module": "flammes", "actif": true },
+    { "id": "sources", "type": "module", "module": "sources", "actif": true },
+    { "id": "version", "type": "module", "module": "version", "actif": true }
+  ]
+}

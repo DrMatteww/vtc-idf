@@ -100,6 +100,25 @@
   .champ{margin-bottom:12px}
   code{background:var(--surface-2);padding:1px 5px;border-radius:2px;font-size:12.5px}
   .scroll{overflow-x:auto}
+  .bloc{border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:10px;background:var(--surface-2)}
+  .bloc--off{opacity:.45}
+  .bloc__barre{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .bloc__num{width:22px;height:22px;border-radius:50%;background:var(--line);color:var(--dim);
+    font-size:11px;font-weight:700;display:grid;place-items:center}
+  .bloc__type{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mute);font-weight:700}
+  .bloc__barre .b.d{margin-left:auto;padding:4px 9px}
+  .ic{background:none;border:1px solid var(--line);color:var(--text);border-radius:var(--r-sm);
+    width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1}
+  .ic:disabled{opacity:.25;cursor:default}
+  .bascule{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);
+    text-transform:none;letter-spacing:0;font-weight:500;margin:0}
+  .bascule input{width:auto}
+  textarea.grand{min-height:140px;line-height:1.5}
+  .apercu{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;max-width:360px}
+  .apercu__app{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--mute);font-weight:700}
+  .apercu__t{font-weight:700;margin-top:4px}
+  .apercu__m{color:var(--dim);font-size:13.5px;margin-top:2px}
   @media(max-width:700px){.deux{grid-template-columns:1fr}}
 </style>
 </head>
@@ -120,7 +139,7 @@
    ========================================================================== */
 const DEPOT  = 'DrMatteww/vtc-idf';
 const BRANCHE = 'main';
-const DOSSIER = 'vtc-app/scripts/sources/';
+const SOURCES = 'vtc-app/scripts/sources/';
 const WF_DONNEES = 'vtc-data.yml';
 const WF_NOTIF   = 'notifier.yml';
 
@@ -153,6 +172,7 @@ const FICHIERS = {
   evenements: {
     titre: 'Événements',
     fichier: 'evenements.csv',
+    chemin: SOURCES + 'evenements.csv',
     lead: 'La source la plus fiable du produit : elle est prioritaire sur les billetteries, ' +
           'qui ne couvrent ni le Stade de France ni La Seine Musicale. ' +
           'L’heure de FIN est celle qui compte — c’est à la sortie que la demande arrive.',
@@ -172,6 +192,7 @@ const FICHIERS = {
   astuces: {
     titre: 'Astuces',
     fichier: 'astuces.csv',
+    chemin: SOURCES + 'astuces.csv',
     lead: 'Le carnet du chauffeur, celui qu’aucun concurrent n’aura : lieux où patienter, ' +
           'heures creuses, entrées à éviter. Une astuce sans coordonnées se lit, c’est tout — ' +
           'lat et lon ne sont pas obligatoires.',
@@ -188,6 +209,7 @@ const FICHIERS = {
   manger: {
     titre: 'Manger',
     fichier: 'manger.csv',
+    chemin: SOURCES + 'manger.csv',
     lead: 'Les adresses relevées à la main, celles qu’OpenStreetMap ne connaît pas — ' +
           'et surtout PARKING, TOILETTES et PRIX, les trois attributs qu’aucune carte ' +
           'grand public ne donne et qui font la valeur des fiches.',
@@ -208,6 +230,7 @@ const FICHIERS = {
   fermetures: {
     titre: 'Fermetures',
     fichier: 'fermetures.csv',
+    chemin: SOURCES + 'fermetures.csv',
     lead: 'À n’utiliser que pour ce que Sytadin ne publie pas. Rappel : seules les ' +
           'fermetures NOCTURNES sont affichées — ce qui est coupé en permanence, les GPS ' +
           'le savent déjà et dévient tout seuls.',
@@ -262,11 +285,11 @@ const versB64 = (s) => {
   return btoa(bin);
 };
 
-const lireFichier = (nom) =>
-  gh('/repos/' + DEPOT + '/contents/' + DOSSIER + nom + '?ref=' + BRANCHE);
+const lireFichier = (chemin) =>
+  gh('/repos/' + DEPOT + '/contents/' + chemin + '?ref=' + BRANCHE);
 
-const ecrireFichier = (nom, contenu, sha, message) =>
-  gh('/repos/' + DEPOT + '/contents/' + DOSSIER + nom, {
+const ecrireFichier = (chemin, contenu, sha, message) =>
+  gh('/repos/' + DEPOT + '/contents/' + chemin, {
     method: 'PUT',
     body: JSON.stringify({ message, content: versB64(contenu), sha, branch: BRANCHE }),
   });
@@ -326,6 +349,7 @@ let modifie = false;
 
 const ONGLETS = [
   ...Object.keys(FICHIERS).map((k) => [k, FICHIERS[k].titre]),
+  ['infos', 'Onglet Infos'],
   ['notif', 'Notifications'],
   ['jeton', 'Accès'],
 ];
@@ -356,6 +380,7 @@ function dessiner() {
     return;
   }
   if (onglet === 'notif') return vueNotif();
+  if (onglet === 'infos') return vueInfos();
   return vueFichier();
 }
 
@@ -401,7 +426,7 @@ async function vueFichier() {
     '<div id="zone">' + message('info', 'Chargement de ' + cfg.fichier + '…') + '</div></div>';
 
   try {
-    const f = await lireFichier(cfg.fichier);
+    const f = await lireFichier(cfg.chemin);
     donnees = { sha: f.sha, csv: lireCsv(versTexte(f.content)) };
     rendreTable();
   } catch (e) {
@@ -493,7 +518,7 @@ async function enregistrer() {
   $('#res').innerHTML = message('info', 'Enregistrement…');
   try {
     const r = await ecrireFichier(
-      cfg.fichier, ecrireCsv(donnees.csv), donnees.sha,
+      cfg.chemin, ecrireCsv(donnees.csv), donnees.sha,
       'Back office : ' + cfg.titre.toLowerCase() + ' (' + donnees.csv.rangs.length + ' lignes)',
     );
     donnees.sha = r.content.sha;
@@ -506,6 +531,132 @@ async function enregistrer() {
     $('#res').innerHTML = message('ko', 'Échec : ' + esc(e.message) +
       (String(e.message).includes('does not match') ? ' — le fichier a changé entre-temps, recharge l’onglet.' : ''));
   }
+}
+
+
+/* ---- Le contenu de l'onglet Infos -------------------------------------
+   Un bloc « module » est interactif et vit dans le code : échéances,
+   réglages, barème des flammes, sources. On peut le déplacer ou le masquer,
+   pas le réécrire. Un bloc « texte » est entièrement libre.              */
+const CHEMIN_INFOS = 'contenu/infos.json';
+const MODULES = [
+  ['echeances', 'Mes échéances'], ['gps', 'Ton GPS'], ['vehicule', 'Ton véhicule'],
+  ['suggestions', 'Un bon plan'], ['flammes', 'Les flammes'],
+  ['sources', 'D’où viennent les infos'], ['version', 'Numéro de version'],
+];
+
+let infos = null;   // { sha, doc }
+
+async function vueInfos() {
+  $('#vue').innerHTML =
+    '<div class="carte"><h2>Onglet Infos</h2>' +
+    '<p class="lead">Ce que lit le chauffeur dans l’onglet Infos. Tu peux réécrire les textes, ' +
+    'en ajouter, en masquer, et changer l’ordre — sans republier l’application sur les magasins. ' +
+    'Les blocs <b>interactifs</b> (échéances, réglages, flammes, sources) se déplacent et se ' +
+    'masquent, mais leur contenu vit dans le code.</p>' +
+    '<div id="zone">' + message('info', 'Chargement…') + '</div></div>';
+  try {
+    const f = await lireFichier(CHEMIN_INFOS);
+    infos = { sha: f.sha, doc: JSON.parse(versTexte(f.content)) };
+    if (!Array.isArray(infos.doc.blocs)) infos.doc.blocs = [];
+    rendreInfos();
+  } catch (e) {
+    $('#zone').innerHTML = message('ko', 'Lecture impossible : ' + esc(e.message));
+  }
+}
+
+function rendreInfos() {
+  const b = infos.doc.blocs;
+  const cartes = b.map((x, i) => {
+    const haut = i === 0 ? ' disabled' : '';
+    const bas = i === b.length - 1 ? ' disabled' : '';
+    const actif = x.actif !== false;
+    const entete =
+      '<div class="bloc__barre">' +
+        '<span class="bloc__num">' + (i + 1) + '</span>' +
+        '<span class="bloc__type">' + (x.type === 'module' ? 'interactif' : 'texte') + '</span>' +
+        '<button class="ic" data-up="' + i + '"' + haut + ' title="Monter">↑</button>' +
+        '<button class="ic" data-down="' + i + '"' + bas + ' title="Descendre">↓</button>' +
+        '<label class="bascule"><input type="checkbox" data-actif="' + i + '"' +
+          (actif ? ' checked' : '') + '> affiché</label>' +
+        (x.type === 'texte'
+          ? '<button class="b d" data-sup="' + i + '" title="Supprimer">✕</button>'
+          : '') +
+      '</div>';
+
+    const corps = x.type === 'module'
+      ? '<div class="champ"><label>Bloc interactif</label><select data-mod="' + i + '">' +
+          MODULES.map(([v, t]) => '<option value="' + v + '"' +
+            (x.module === v ? ' selected' : '') + '>' + esc(t) + '</option>').join('') +
+        '</select></div>'
+      : '<div class="champ"><label>Titre</label>' +
+          '<input data-titre="' + i + '" value="' + esc(x.titre || '') + '"></div>' +
+        '<div class="champ"><label>Texte — une ligne vide sépare deux paragraphes, ' +
+          '**gras** entre doubles astérisques</label>' +
+          '<textarea class="grand" data-para="' + i + '">' +
+            esc((x.paragraphes || []).join('\n\n')) + '</textarea></div>';
+
+    return '<div class="bloc' + (actif ? '' : ' bloc--off') + '">' + entete + corps + '</div>';
+  }).join('');
+
+  $('#zone').innerHTML =
+    '<div class="barre">' +
+      '<button class="b g" id="ajouter">+ Ajouter un texte</button>' +
+      '<span class="mini">' + b.length + ' bloc(s)</span>' +
+      '<button class="b pousse" id="enreg" disabled>Enregistrer</button>' +
+    '</div>' +
+    cartes +
+    '<div id="res"></div>' +
+    '<div class="barre"><button class="b g" id="regen">Publier les changements</button>' +
+    '<span class="mini">L’application les verra après la régénération, plus le cache de Pages.</span></div>';
+
+  const z = $('#zone');
+  z.addEventListener('input', (e) => {
+    const t = e.target;
+    const i = t.dataset.titre ?? t.dataset.para ?? t.dataset.mod ?? t.dataset.actif;
+    if (i === undefined) return;
+    const x = infos.doc.blocs[+i];
+    if (t.dataset.titre !== undefined) x.titre = t.value;
+    else if (t.dataset.para !== undefined) x.paragraphes = t.value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    else if (t.dataset.mod !== undefined) { x.module = t.value; x.id = t.value; }
+    else if (t.dataset.actif !== undefined) { x.actif = t.checked; rendreInfos(); }
+    salir();
+  });
+  z.addEventListener('click', (e) => {
+    const bt = e.target.closest('button');
+    if (!bt) return;
+    const liste = infos.doc.blocs;
+    if (bt.dataset.up !== undefined) { const i = +bt.dataset.up; [liste[i - 1], liste[i]] = [liste[i], liste[i - 1]]; }
+    else if (bt.dataset.down !== undefined) { const i = +bt.dataset.down; [liste[i + 1], liste[i]] = [liste[i], liste[i + 1]]; }
+    else if (bt.dataset.sup !== undefined) { if (!confirm('Supprimer ce bloc ?')) return; liste.splice(+bt.dataset.sup, 1); }
+    else return;
+    rendreInfos(); salir();
+  });
+
+  $('#ajouter').onclick = () => {
+    infos.doc.blocs.push({
+      id: 'texte-' + Date.now().toString(36),
+      type: 'texte', titre: 'Nouveau bloc', paragraphes: [''], actif: true,
+    });
+    rendreInfos(); salir();
+  };
+  $('#enreg').onclick = async () => {
+    $('#res').innerHTML = message('info', 'Enregistrement…');
+    try {
+      const txt = JSON.stringify(infos.doc, null, 2) + '\n';
+      const r = await ecrireFichier(CHEMIN_INFOS, txt, infos.sha, 'Back office : onglet Infos');
+      infos.sha = r.content.sha; modifie = false;
+      $('#enreg').disabled = true; $('#enreg').textContent = 'Enregistrer';
+      $('#res').innerHTML = message('ok', 'Enregistré. Commit <code>' + esc(r.commit.sha.slice(0, 7)) + '</code>.');
+    } catch (e) {
+      $('#res').innerHTML = message('ko', 'Échec : ' + esc(e.message));
+    }
+  };
+  $('#regen').onclick = async () => {
+    $('#res').innerHTML = message('info', 'Publication…');
+    try { await lancerWorkflow(WF_DONNEES, {}); $('#res').innerHTML = message('ok', 'Publication lancée.'); }
+    catch (e) { $('#res').innerHTML = message('ko', 'Échec : ' + esc(e.message)); }
+  };
 }
 
 /* ---- Notifications ----------------------------------------------------- */
@@ -527,6 +678,12 @@ function vueNotif() {
     '</div>' +
     '<div class="champ"><label>Message</label>' +
     '<textarea id="corps" maxlength="180" placeholder="Métro et RER très perturbés toute la journée. Prévois des courses longues."></textarea></div>' +
+    '<div class="champ"><label>Ce que le chauffeur verra</label>' +
+      '<div class="apercu" id="apercu">' +
+        '<div class="apercu__app">QLN · maintenant</div>' +
+        '<div class="apercu__t" id="aT">Titre</div>' +
+        '<div class="apercu__m" id="aM">Message</div>' +
+      '</div></div>' +
     '<div class="barre"><button class="b" id="envoyer">Envoyer</button>' +
     '<span class="mini">Une notification ne se rattrape pas. Relis avant d’appuyer.</span></div>' +
     '<div id="res"></div>' +
@@ -535,6 +692,15 @@ function vueNotif() {
     'Tant que le secret <code>FCM_SERVICE_ACCOUNT</code> n’est pas en place, l’Action tourne à ' +
     'blanc et écrit ce qu’elle aurait envoyé — de quoi tout vérifier avant la première vraie.</p>' +
     '</div>';
+
+  /* L'aperçu se met à jour en direct : une notification ne se rattrape pas,
+     et on relit mieux une maquette qu'un champ de saisie. */
+  const rafraichirApercu = () => {
+    $('#aT').textContent = $('#titre').value.trim() || 'Titre';
+    $('#aM').textContent = $('#corps').value.trim() || 'Message';
+  };
+  $('#titre').addEventListener('input', rafraichirApercu);
+  $('#corps').addEventListener('input', rafraichirApercu);
 
   $('#envoyer').onclick = async () => {
     const titre = $('#titre').value.trim();

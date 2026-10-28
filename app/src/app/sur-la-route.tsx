@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList, RefreshControl, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { type Depannage, depannageToilettes } from '@/core/depannage-wc';
 import { fermeturesDeLaNuit } from '@/core/fermetures';
 import { formatDistance, parDistance } from '@/core/geo';
 import { estToiletteDeParc, etatHoraire, ouvert24 } from '@/core/horaires';
@@ -23,6 +24,7 @@ import { Departement, Etiquette } from '@/ui/etiquettes';
 import { Etoile } from '@/ui/etoile';
 import { Pastilles } from '@/ui/pastilles';
 import { SousNav } from '@/ui/sous-nav';
+import { HAUTEUR_ONGLETS } from '@/ui/ecran';
 import { couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
 
 type AvecDist = { km?: number };
@@ -35,6 +37,7 @@ export default function SurLaRoute() {
   const favoris = usePrefs((e) => e.favoris);
   const vehicule = usePrefs((e) => e.vehicule);
 
+  const insets = useSafeAreaInsets();
   const [section, setSection] = useState<CodeSection>('wc');
   /* Une pastille par sous-section, mémorisée le temps de la session
      seulement : les trois listes ont la leur, parce que « Favoris » existe
@@ -80,6 +83,23 @@ export default function SurLaRoute() {
   const { items, parcsMasques, fermes } = useMemo(
     () => calculer({ section, vue, quoi, lieux, brief, h, pos, estFavori, vehicule, enFavoris }),
     [section, vue, quoi, lieux, brief, h, pos, estFavori, vehicule, enFavoris],
+  );
+
+  /* Quand les toilettes publiques sont trop loin — ou qu'il n'y en a aucune —
+     on propose le meilleur repli que la donnée permette, plutôt que de
+     laisser le chauffeur devant une liste inutile. */
+  const depannage = useMemo(
+    () =>
+      section === 'wc' && lieux
+        ? depannageToilettes({
+            toilettes: items as any,
+            services: lieux.services ?? [],
+            manger: lieux.manger ?? [],
+            pos,
+            now: h,
+          })
+        : null,
+    [section, lieux, items, pos, h],
   );
 
   const pastilles = pastillesDe(section);
@@ -128,7 +148,7 @@ export default function SurLaRoute() {
         keyExtractor={(it: { id: string }) => it.id}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={s.liste}
+        contentContainerStyle={[s.liste, { paddingBottom: insets.bottom + HAUTEUR_ONGLETS }]}
         refreshControl={
           <RefreshControl
             refreshing={chargement}
@@ -152,6 +172,7 @@ export default function SurLaRoute() {
             quoi={quoi}
             h={h}
             aDesItems={items.length > 0}
+            depannage={depannage}
           />
         }
         renderItem={({ item }) => (
@@ -270,7 +291,7 @@ function calculer(o: {
 
 /* ---- L'en-tête explicatif --------------------------------------------- */
 function Entete({
-  section, pos, etatGeo, parcsMasques, fermes, quoi, h, aDesItems,
+  section, pos, etatGeo, parcsMasques, fermes, quoi, h, aDesItems, depannage,
 }: {
   section: CodeSection;
   pos: boolean;
@@ -280,6 +301,7 @@ function Entete({
   quoi: string;
   h: ReturnType<typeof maintenant>;
   aDesItems: boolean;
+  depannage?: Depannage | null;
 }) {
   const lignes: string[] = [];
 
@@ -314,12 +336,47 @@ function Entete({
     );
   }
 
-  if (!lignes.length) return null;
+  if (!lignes.length && !depannage) return null;
   return (
     <View style={s.notes}>
+      {depannage ? <CarteDepannage d={depannage} /> : null}
       {lignes.map((t) => (
         <Text key={t} style={s.note}>{t}</Text>
       ))}
+    </View>
+  );
+}
+
+/* Le repli quand il n'y a pas de toilettes publiques à côté. On dit lequel
+   des deux cas on propose : des toilettes ÉCRITES dans la donnée, ou une
+   chaîne où il y en a presque toujours. Promettre la seconde comme la
+   première, c'est exactement le genre de petit mensonge qui fait désinstaller. */
+function CarteDepannage({ d }: { d: Depannage }) {
+  return (
+    <View style={s.depannage}>
+      <Text style={s.depannageLabel}>
+        {d.certitude === 'sure' ? 'RIEN DE PUBLIC À CÔTÉ' : 'EN DÉPANNAGE'}
+      </Text>
+      <Text style={s.depannageNom}>{d.nom}</Text>
+      <Text style={s.depannageSous}>
+        {d.adresse} · {formatDistance(d.km)}
+      </Text>
+      <View style={s.depannageTags}>
+        <Etiquette
+          texte={d.certitude === 'sure' ? 'Toilettes confirmées' : 'Toilettes probables'}
+          ton={d.certitude === 'sure' ? 'ok' : undefined}
+        />
+        <Etiquette texte={d.detail} />
+      </View>
+      {d.certitude === 'probable' ? (
+        <Text style={s.note}>
+          La base ne dit pas si cette enseigne a des toilettes — mais une chaîne
+          en a presque toujours.
+        </Text>
+      ) : null}
+      <View style={s.depannageBouton}>
+        <BoutonGps lat={d.lat} lon={d.lon} />
+      </View>
     </View>
   );
 }
@@ -506,8 +563,25 @@ const s = StyleSheet.create({
     fontSize: 15,
   },
 
-  liste: { paddingHorizontal: espaces.pad, paddingBottom: 32 },
+  liste: { paddingHorizontal: espaces.pad },
   notes: { paddingTop: 12, gap: 6 },
+
+  depannage: {
+    backgroundColor: couleurs.surface,
+    borderColor: couleurs.trait,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    borderLeftColor: couleurs.accent,
+    borderRadius: rayons.carte,
+    padding: espaces.pad,
+    gap: 3,
+    marginBottom: 6,
+  },
+  depannageLabel: { ...typo.etiquette, color: couleurs.texte, marginBottom: 6 },
+  depannageNom: { ...typo.carteTitre, color: couleurs.texte },
+  depannageSous: { ...typo.ligneSous, color: couleurs.texteAtenue },
+  depannageTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 8 },
+  depannageBouton: { marginTop: 12, alignItems: 'flex-start' },
   note: { ...typo.ligneSous, color: couleurs.texteMuet, lineHeight: 18 },
 
   ligne: {

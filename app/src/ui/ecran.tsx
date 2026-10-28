@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BarreTitre } from './barre-titre';
 import { couleurs, espaces, typo } from './theme';
@@ -23,6 +23,12 @@ interface Props {
 export function Ecran({
   titre, sousTitre, fixe, aDroite, onRafraichir, rafraichit, children,
 }: Props) {
+  /* La barre d'onglets est native et FLOTTE au-dessus du contenu : sans
+     réserve en bas, la dernière ligne d'un écran long passe dessous et il
+     faut remonter au doigt pour la lire. On réserve sa hauteur plus la zone
+     sûre du téléphone. */
+  const insets = useSafeAreaInsets();
+  const basDePage = { paddingBottom: insets.bottom + HAUTEUR_ONGLETS };
   const entete = (
     <View style={s.topbar}>
       <View style={s.titres}>
@@ -45,7 +51,7 @@ export function Ecran({
       <BarreTitre />
       <ScrollView
         style={s.corps}
-        contentContainerStyle={fixe ? s.fixe : s.defilant}
+        contentContainerStyle={[fixe ? s.fixe : s.defilant, basDePage]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           onRafraichir ? (
@@ -65,11 +71,14 @@ export function Ecran({
   );
 }
 
+/* Hauteur d'une barre d'onglets native, iOS comme Android. */
+export const HAUTEUR_ONGLETS = 64;
+
 const s = StyleSheet.create({
   fond: { flex: 1, backgroundColor: couleurs.fond },
   corps: { flex: 1 },
-  defilant: { paddingBottom: 24 },
-  fixe: { flexGrow: 1, paddingBottom: 24 },
+  defilant: {},
+  fixe: { flexGrow: 1 },
   topbar: {
     paddingHorizontal: espaces.pad,
     paddingTop: 16,

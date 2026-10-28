@@ -1,14 +1,16 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Constants from 'expo-constants';
 import { DateTime } from 'luxon';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SEUIL_1, SEUIL_2, SEUIL_3 } from '@/core/demande';
 import { type EcheanceLue, libelleEcheance, lireEcheances } from '@/core/echeances';
+import type { Bloc, BlocTexte, Module } from '@/core/infos';
 import type { Vehicule } from '@/core/lieux';
 import { ZONE, maintenant } from '@/core/temps';
 import type { Nav } from '@/reglages/navigation';
+import { useDonnees } from '@/donnees/store';
 import { usePrefs } from '@/reglages/preferences';
 import { Ecran } from '@/ui/ecran';
 import { Etiquette, Flammes } from '@/ui/etiquettes';
@@ -17,22 +19,68 @@ import { Pastilles } from '@/ui/pastilles';
 import { couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
 
 export default function Infos() {
+  /* Le contenu vient d'un fichier, pas du code : corriger une formulation ne
+     doit pas demander une republication et une revue Apple. Tant qu'il n'est
+     pas chargé, le repli du noyau s'affiche — l'écran n'est jamais vide. */
+  const infos = useDonnees((e) => e.infos);
+  const assurerInfos = useDonnees((e) => e.assurerInfos);
+  useEffect(() => {
+    assurerInfos();
+  }, [assurerInfos]);
+
   return (
     <Ecran titre="Infos" sousTitre="la confiance">
       <View style={s.corps}>
-        <MesEcheances />
-        <TonGps />
-        <TonVehicule />
-        <PourquoiGratuit />
-        <PasDeFichage />
-        <Suggestions />
-        <LesFlammes />
-        <DOuViennentLesInfos />
+        {infos.blocs.map((b) => <Rendu key={b.id} b={b} />)}
+      </View>
+    </Ecran>
+  );
+}
+
+function Rendu({ b }: { b: Bloc }) {
+  if (b.type === 'texte') return <CarteTexte b={b} />;
+  return <ModuleRendu nom={b.module} />;
+}
+
+function ModuleRendu({ nom }: { nom: Module }) {
+  switch (nom) {
+    case 'echeances': return <MesEcheances />;
+    case 'gps': return <TonGps />;
+    case 'vehicule': return <TonVehicule />;
+    case 'suggestions': return <Suggestions />;
+    case 'flammes': return <LesFlammes />;
+    case 'sources': return <DOuViennentLesInfos />;
+    case 'version':
+      return (
         <Text style={s.version}>
           Version {Constants.expoConfig?.version ?? '1.0'} — Île-de-France
         </Text>
-      </View>
-    </Ecran>
+      );
+    /* Un module inconnu vient d'un back office plus récent que l'app : on
+       l'ignore en silence plutôt que de casser la page. */
+    default: return null;
+  }
+}
+
+/* Les paragraphes acceptent **du gras** : c'est la seule mise en forme, et
+   elle se tape sans rien connaître. Tout le reste serait un éditeur à
+   maintenir pour une page qui en a huit. */
+function Gras({ texte }: { texte: string }) {
+  const morceaux = texte.split('**');
+  return (
+    <Text style={s.p}>
+      {morceaux.map((m, i) =>
+        i % 2 ? <Text key={i} style={s.gras}>{m}</Text> : <Text key={i}>{m}</Text>,
+      )}
+    </Text>
+  );
+}
+
+function CarteTexte({ b }: { b: BlocTexte }) {
+  return (
+    <Carte label={b.titre}>
+      {b.paragraphes.map((p, i) => <Gras key={i} texte={p} />)}
+    </Carte>
   );
 }
 
@@ -200,50 +248,7 @@ function TonVehicule() {
   );
 }
 
-/* ---- La confiance ------------------------------------------------------ */
-function PourquoiGratuit() {
-  return (
-    <Carte label="Pourquoi c’est gratuit">
-      <P>
-        L’appli est <G>gratuite, et le restera</G>. Pas d’abonnement, pas de
-        version payante.
-      </P>
-      <P>
-        Elle est financée par de la <G>publicité</G>. C’est ce qui paie
-        l’hébergement et le temps passé à tenir les données à jour. Tu le sais
-        dès l’installation, il n’y a rien de caché là-dedans.
-      </P>
-      <P>
-        L’objectif à terme : remplacer la pub par des{' '}
-        <G>réductions négociées pour les chauffeurs</G> — lavage, pneus,
-        entretien, assurance. Plus on est nombreux, plus ça devient possible.
-      </P>
-    </Carte>
-  );
-}
 
-function PasDeFichage() {
-  return (
-    <Carte label="Pas de compte, pas de fichage">
-      <P>
-        Aucune inscription n’est demandée. <G>Pas de nom, pas de numéro, pas de
-        plaque.</G>
-      </P>
-      <P>
-        <G>Nous</G> n’avons ni compte, ni serveur, ni base de données, et nous
-        ne recevons rien de ton téléphone. L’appli ne sait pas qui tu es et
-        n’enregistre pas tes trajets. Ta position sert uniquement à trier les
-        lieux par distance, sur ton téléphone, et ne nous est jamais envoyée.
-      </P>
-      <P>
-        <G>La régie publicitaire</G>, elle, collecte des données pour choisir
-        les annonces — et c’est ce qui permet que l’application reste gratuite.
-        Tu peux refuser : les annonces deviennent moins pertinentes, et rien
-        d’autre ne change.
-      </P>
-    </Carte>
-  );
-}
 
 function Suggestions() {
   const ouvrable = !!marque.suggestions;
@@ -351,8 +356,10 @@ function DOuViennentLesInfos() {
         plateforme de VTC, et aucune ne part d’ici.
       </Petit>
       <View style={s.rappel}>
-        <Etiquette texte="Rappel" />
-        <Text style={s.petit}>
+        <View style={s.rappelTag}>
+          <Etiquette texte="Rappel" />
+        </View>
+        <Text style={[s.petit, s.rappelTexte]}>
           Les volumes affichés sont des estimations de capacité, pas des
           réservations. Ils servent à comparer deux créneaux entre eux, jamais
           à promettre des courses.
@@ -392,7 +399,9 @@ const s = StyleSheet.create({
   ligneCorps: { flex: 1 },
   ligneTitre: { ...typo.ligneTitre, color: couleurs.texte },
   ligneSous: { ...typo.ligneSous, color: couleurs.texteAtenue, marginTop: 1, lineHeight: 17 },
-  colFlammes: { width: 48, alignItems: 'flex-start' },
+  /* Assez large pour que 🔥🔥🔥 tienne sur UNE ligne : à 48 px la
+     troisième flamme passait à la ligne suivante. */
+  colFlammes: { width: 62, alignItems: 'flex-start' },
   tiret: { ...typo.ligneSous, color: couleurs.texteMuet },
 
   date: { alignItems: 'flex-end', minHeight: 36, justifyContent: 'center' },
@@ -417,12 +426,17 @@ const s = StyleSheet.create({
 
   rappel: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 8,
     marginTop: 6,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: couleurs.traitDoux,
   },
+  /* flexShrink: 0 sur l'étiquette, flex: 1 sur le texte : sans ça, la case
+     « Rappel » s'étirait et le paragraphe débordait de la carte. */
+  rappelTag: { flexShrink: 0 },
+  rappelTexte: { flex: 1 },
 
   version: {
     ...typo.ligneSous,

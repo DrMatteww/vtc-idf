@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState, RefreshControl, SectionList, StyleSheet, Text, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   DEPTS, dansFiltre, enCours, estImminent, estSortie, FILTRES,
@@ -16,6 +16,7 @@ import { BarreTitre } from '@/ui/barre-titre';
 import { LienGps } from '@/ui/bouton-gps';
 import { Departement, Flammes } from '@/ui/etiquettes';
 import { Pastilles } from '@/ui/pastilles';
+import { HAUTEUR_ONGLETS } from '@/ui/ecran';
 import { couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
 
 const TYPES = [
@@ -27,6 +28,7 @@ export default function OuAller() {
   const { brief, briefEnCours, rafraichirBrief, zones, assurerZones } = useDonnees();
   const { pos, demander } = usePosition();
 
+  const insets = useSafeAreaInsets();
   const [type, setType] = useState('all');
   const [dept, setDept] = useState<string>('all');
 
@@ -122,7 +124,7 @@ export default function OuAller() {
           />
         }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={s.liste}
+        contentContainerStyle={[s.liste, { paddingBottom: insets.bottom + HAUTEUR_ONGLETS }]}
         renderSectionHeader={({ section }) => (
           <Text style={s.section}>{section.title}</Text>
         )}
@@ -220,7 +222,7 @@ const s = StyleSheet.create({
   filtres: { paddingLeft: espaces.pad, paddingBottom: 6 },
   filtresBas: { paddingLeft: espaces.pad, paddingBottom: 8 },
 
-  liste: { paddingHorizontal: espaces.pad, paddingBottom: 32 },
+  liste: { paddingHorizontal: espaces.pad },
   section: {
     ...typo.etiquette,
     color: couleurs.texteMuet,

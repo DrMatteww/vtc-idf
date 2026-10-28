@@ -15,7 +15,7 @@ export const BASE = 'https://drmatteww.github.io/vtc-idf/data/';
 /** Au-delà, on sert le cache. Un chauffeur n'attend pas un écran qui tourne. */
 export const DELAI_MS = 8000;
 
-export type NomFichier = 'brief' | 'lieux' | 'zones';
+export type NomFichier = 'brief' | 'lieux' | 'zones' | 'infos';
 
 export interface Chargement<T> {
   donnees: T | null;
@@ -68,3 +68,5 @@ async function charger<T>(nom: NomFichier): Promise<Chargement<T>> {
 export const chargerBrief = () => charger<Brief>('brief');
 export const chargerLieux = () => charger<Lieux>('lieux');
 export const chargerZones = () => charger<Zones>('zones');
+/* Le contenu de l'onglet Infos : écrit par le back office, lu ici. */
+export const chargerInfos = () => charger<unknown>('infos');
