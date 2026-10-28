@@ -146,6 +146,11 @@ export interface LieuHoraire extends LieuBase {
   energie?: Energie[];
   /** Pompes automatiques la nuit : pour faire le plein, c'est tout ce qui compte. */
   pompes24?: boolean;
+  /* Les deux suivants ne viennent que des fiches saisies à la main
+     (sources/manger.csv) : OpenStreetMap ne les porte pas, et ce sont
+     pourtant deux des questions qu'un chauffeur se pose vraiment. */
+  parking?: boolean;
+  price?: string;
 }
 
 export interface Manger extends LieuHoraire {

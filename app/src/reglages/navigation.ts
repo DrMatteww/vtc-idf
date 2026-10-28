@@ -16,7 +16,7 @@ export type Nav = 'waze' | 'gmaps';
 
 export const NOMS: Record<Nav, string> = { waze: 'Waze', gmaps: 'Maps' };
 
-/** Le plus répandu chez les chauffeurs. Modifiable dans Infos au lot 6. */
+/** Le plus répandu chez les chauffeurs. Réglable dans Infos au lot 6. */
 export const NAV_DEFAUT: Nav = 'waze';
 
 export function urlWaze(lat: number, lon: number): string {
