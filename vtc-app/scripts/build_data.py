@@ -2358,10 +2358,27 @@ OVERPASS_WC = ('[out:json][timeout:180];'
 # Rien, côté application, ne peut donc rattraper l'erreur : elle se corrige
 # ici ou nulle part.
 #
-# Conséquence assumée : la couverture de banlieue baisse nettement. C'est le
-# bon arbitrage — « mieux vaut en montrer moins que faire rouler quelqu'un
-# pour rien » — et l'application comble le trou autrement, en proposant la
-# station-service la plus proche dont les toilettes sont confirmées.
+# Ce que ça coûte, mesuré et non estimé, sur l'export du 28 octobre 2026 :
+#
+#     Paris      581 → 581   (intact : sanisettes de la Ville, pas OSM)
+#     banlieue  1419 → 321   (-77 %)
+#     total     2000 → 902
+#
+# Autrement dit, les trois quarts de ce qui était affiché en banlieue
+# n'étaient pas des toilettes publiques. Le chauffeur a vu ces chiffres et a
+# tranché : « mieux vaut en avoir moins mais des vraies. » C'est donc une
+# décision prise en connaissance de cause, pas un effet de bord.
+#
+# Il reste une marge si l'on changeait d'avis : certaines toilettes sans
+# « access » portent quand même fee=no ou wheelchair=yes, signe que
+# quelqu'un les a documentées. Les accepter en récupérerait une partie —
+# mais aucune de ces deux étiquettes ne prouve qu'on n'est pas dans un
+# cimetière. À ne rouvrir qu'avec des retours de terrain, pas au jugé.
+#
+# L'application comble le trou autrement : quand il n'y a rien de public à
+# moins de 1,2 km, elle propose la station-service la plus proche dont les
+# toilettes sont confirmées, et à défaut une chaîne ouverte — annoncée comme
+# probable, jamais comme sûre.
 WC_ACCESS_OK = ("yes", "public", "permissive")
 
 
