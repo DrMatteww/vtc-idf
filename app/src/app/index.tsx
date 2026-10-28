@@ -4,6 +4,7 @@ import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   aVenir, enCours, estSortie, libelleCreneau, meilleure,
 } from '@/core/demande';
+import { echeanceUrgente, libelleEcheance } from '@/core/echeances';
 import { fermeturesDeLaNuit } from '@/core/fermetures';
 import { fraicheur } from '@/core/fraicheur';
 import { departementA, proches, rayonPour } from '@/core/geo';
@@ -17,6 +18,7 @@ import { useDonnees } from '@/donnees/store';
 import {
   geoDejaAccordee, messageGeo, ouvrirReglages, peutOuvrirReglages, usePosition,
 } from '@/reglages/position';
+import { usePrefs } from '@/reglages/preferences';
 import { ecrire, lireParmi } from '@/reglages/stockage';
 import { BoutonGps } from '@/ui/bouton-gps';
 import { Ecran } from '@/ui/ecran';
@@ -41,6 +43,7 @@ export default function Brief() {
     zones, assurerZones,
   } = useDonnees();
   const { pos, etat: etatGeo, demander } = usePosition();
+  const saisies = usePrefs((e) => e.echeances);
 
   /* Si la position a déjà été accordée une fois, le brief s'ouvre sur le
      secteur du chauffeur : c'est ce qu'il veut voir en premier. Sinon, toute
@@ -122,6 +125,11 @@ export default function Brief() {
     .sort((a, b) => aParis(a.start).toMillis() - aParis(b.start).toMillis());
 
   const fermetures = brief ? fermeturesDeLaNuit(brief.closures, nuitEnCours(h)) : [];
+
+  /* « Saisis-les une fois, le brief te prévient à temps » : c'est écrit dans
+     Infos, donc c'est un engagement. Trois mois pour la carte VTC, un mois
+     pour les autres. */
+  const echeance = echeanceUrgente(saisies, h);
   const geoKo = mode === 'autour' && (etatGeo === 'refuse' || etatGeo === 'indisponible');
 
   return (
@@ -171,6 +179,15 @@ export default function Brief() {
             et on continue d'afficher le brief régional. On ne bloque jamais
             un écran sur une permission refusée. */}
         {geoKo ? <BandeauGeo etat={etatGeo} /> : null}
+
+        {echeance ? (
+          <View style={s.echeance}>
+            <Text style={s.echeanceTexte}>
+              <Text style={s.echeanceNom}>{echeance.libelle}</Text>{' '}
+              {libelleEcheance(echeance.jours)}
+            </Text>
+          </View>
+        ) : null}
 
         {!brief ? (
           <EtatVide enCours={briefEnCours} erreur={briefErreur} />
@@ -355,6 +372,17 @@ const s = StyleSheet.create({
   },
   carteHero: { borderLeftWidth: 3, borderLeftColor: couleurs.accent },
   carteAlerte: { borderLeftWidth: 3, borderLeftColor: couleurs.alerte },
+
+  echeance: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: couleurs.alerteTrait,
+    backgroundColor: couleurs.alerteFond,
+    borderRadius: rayons.petit,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  echeanceTexte: { ...typo.ligneSous, color: '#FF8574' },
+  echeanceNom: { fontFamily: polices.demi },
 
   label: { ...typo.etiquette, color: couleurs.texteMuet, marginBottom: 10 },
   labelHero: { color: couleurs.texte },

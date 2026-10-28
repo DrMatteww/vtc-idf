@@ -16,10 +16,21 @@ export interface Marque {
   couleur: string;
   /** URL d'un logo qui remplacera le texte. Null tant qu'il n'y en a pas. */
   logo: string | null;
+  /**
+   * Où arrivent les suggestions des chauffeurs. Null tant que le back office
+   * n'existe pas : la carte explique alors que le canal n'est pas encore
+   * ouvert, plutôt que d'afficher un bouton qui ne mène nulle part.
+   *
+   * La version GoodBarber ouvrait la messagerie du chauffeur avec un message
+   * préparé ; elle a été retirée pour ne pas exposer d'adresse. Le back
+   * office fera mieux : les retours arrivent au même endroit.
+   */
+  suggestions: string | null;
 }
 
 export const marque: Marque = {
   nom: 'QLN',
   couleur: couleurs.texte,
   logo: null,
+  suggestions: null,
 };
