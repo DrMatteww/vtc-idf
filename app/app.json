@@ -42,7 +42,16 @@
         }
       ],
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "VTC IDF se sert de ta position pour trier les lieux par distance et afficher le brief autour de toi. Elle reste sur ton téléphone et n'est envoyée nulle part.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

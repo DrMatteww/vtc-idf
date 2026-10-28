@@ -2,8 +2,8 @@ import { DateTime } from 'luxon';
 import { describe, expect, it } from 'vitest';
 
 import {
-  ZONE, aParis, compteARebours, finDeJournee, finDeTranche, finHorizon,
-  hhmm, libellePeriode, nuitEnCours, titreNuit, tranche,
+  ZONE, aParis, compteARebours, estLeLendemain, finDeJournee, finDeTranche,
+  finHorizon, hhmm, libellePeriode, nuitEnCours, titreNuit, tranche,
 } from '../temps';
 
 const t = (iso: string) => DateTime.fromISO(iso, { zone: ZONE });
@@ -128,5 +128,19 @@ describe('les libellés', () => {
       .toBe('21h00 → 06h00');
     expect(libellePeriode('2026-08-22T12:00+02:00', '2026-10-23T12:00+02:00'))
       .toBe('jusqu’au 23/10');
+  });
+});
+
+describe('aujourd\u2019hui ou demain', () => {
+  it('distingue deux jours du même salon, tous deux à 14h00', () => {
+    const now = t('2026-10-28T15:33'); // le salon du 28 est en cours
+    expect(estLeLendemain('2026-10-28T14:00+01:00', now)).toBe(false);
+    expect(estLeLendemain('2026-10-29T14:00+01:00', now)).toBe(true);
+  });
+
+  it('à 2 h du matin, « aujourd\u2019hui » est encore la nuit en cours', () => {
+    const now = t('2026-10-29T02:00');
+    expect(estLeLendemain('2026-10-29T05:00+01:00', now)).toBe(false);
+    expect(estLeLendemain('2026-10-29T14:00+01:00', now)).toBe(true);
   });
 });

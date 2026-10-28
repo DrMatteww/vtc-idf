@@ -1,32 +1,53 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppState, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   aVenir, enCours, estSortie, libelleCreneau, meilleure,
 } from '@/core/demande';
 import { fermeturesDeLaNuit } from '@/core/fermetures';
 import { fraicheur } from '@/core/fraicheur';
+import { RAYON_KM, proches } from '@/core/geo';
 import { meteoMaintenant } from '@/core/meteo';
 import {
-  aParis, compteARebours, hhmm, libelleJour, maintenant, nuitEnCours, tranche,
+  aParis, compteARebours, estLeLendemain, hhmm, libelleJour, maintenant,
+  nuitEnCours, tranche,
 } from '@/core/temps';
 import type { Closure, Demand } from '@/core/types';
 import { useDonnees } from '@/donnees/store';
+import {
+  geoDejaAccordee, messageGeo, ouvrirReglages, peutOuvrirReglages, usePosition,
+} from '@/reglages/position';
+import { ecrire, lireParmi } from '@/reglages/stockage';
 import { BoutonGps } from '@/ui/bouton-gps';
 import { Ecran } from '@/ui/ecran';
 import { Departement, Etiquette, Flammes } from '@/ui/etiquettes';
+import { Pastilles } from '@/ui/pastilles';
 import { couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
 
 /** Fenêtre du bloc « Maintenant » : une heure et demie, pas plus. */
 const FENETRE_MIN = 90;
 
+/* Deux briefs, un bouton. Le choix tient d'une session à l'autre. */
+type Mode = 'idf' | 'autour';
+const MODES = [
+  { code: 'idf' as const, libelle: 'Toute l’Île-de-France' },
+  { code: 'autour' as const, libelle: 'Autour de moi' },
+];
+const CLE_MODE = 'vtc_brief_mode';
+
 export default function Brief() {
   const { brief, briefDepuisCache, briefErreur, briefEnCours, rafraichirBrief } =
     useDonnees();
+  const { pos, etat: etatGeo, demander } = usePosition();
 
-  /* L'heure se recalcule toute seule : l'app reste ouverte des heures sur le
-     siège passager, et « Ce soir » doit devenir « Cette nuit » sans relance.
-     Le compte à rebours suit le même battement. */
+  /* Si la position a déjà été accordée une fois, le brief s'ouvre sur le
+     secteur du chauffeur : c'est ce qu'il veut voir en premier. Sinon, toute
+     l'Île-de-France — et aucune fenêtre d'autorisation ne s'ouvre au premier
+     lancement, ce qui serait la pire des entrées en matière. */
+  const [mode, setMode] = useState<Mode>(() =>
+    lireParmi<Mode>(CLE_MODE, ['idf', 'autour'], geoDejaAccordee() ? 'autour' : 'idf'),
+  );
+
   const [h, setH] = useState(() => maintenant());
   useEffect(() => {
     const t = setInterval(() => setH(maintenant()), 30_000);
@@ -37,9 +58,12 @@ export default function Brief() {
     rafraichirBrief();
   }, [rafraichirBrief]);
 
-  /* Rejoue le chargement quand l'écran redevient visible — c'est ce qui se
-     passe quand on rouvre l'app sans la relancer. Sans ça, un brief pris à
-     Orly resterait affiché deux heures plus tard. */
+  /* Pour le brief local on exige une position NEUVE : on peut fermer l'app à
+     Orly et la rouvrir dans Paris. */
+  useEffect(() => {
+    if (mode === 'autour') demander(true);
+  }, [mode, demander]);
+
   const dernier = useRef(Date.now());
   useEffect(() => {
     const sub = AppState.addEventListener('change', (etat) => {
@@ -48,14 +72,25 @@ export default function Brief() {
       dernier.current = Date.now();
       setH(maintenant());
       rafraichirBrief();
+      if (mode === 'autour') demander(true);
     });
     return () => sub.remove();
-  }, [rafraichirBrief]);
+  }, [rafraichirBrief, demander, mode]);
 
+  function choisir(m: Mode) {
+    setMode(m);
+    ecrire(CLE_MODE, m);
+  }
+
+  const local = mode === 'autour' && !!pos;
   const fr = fraicheur(brief?.generated_at, briefDepuisCache, h);
-  const meteo = meteoMaintenant(brief?.meteo, null, h);
+  /* La météo du bon département : il peut pleuvoir à Melun pendant qu'il fait
+     beau à Cergy. Sans position, c'est Paris. */
+  const meteo = meteoMaintenant(brief?.meteo, pos, h);
 
-  const vivant = brief ? enCours(brief.demand, h) : [];
+  const tout = brief ? enCours(brief.demand, h) : [];
+  const vivant = local ? proches(tout, pos, RAYON_KM).liste : tout;
+
   const vedette = meilleure(aVenir(vivant, -30, FENETRE_MIN, h), h);
   const suite = vivant
     .filter((d) => d.id !== vedette?.id)
@@ -63,8 +98,8 @@ export default function Brief() {
     .slice(0, 2)
     .sort((a, b) => aParis(a.start).toMillis() - aParis(b.start).toMillis());
 
-  const nuit = nuitEnCours(h);
-  const fermetures = brief ? fermeturesDeLaNuit(brief.closures, nuit) : [];
+  const fermetures = brief ? fermeturesDeLaNuit(brief.closures, nuitEnCours(h)) : [];
+  const geoKo = mode === 'autour' && (etatGeo === 'refuse' || etatGeo === 'indisponible');
 
   return (
     <Ecran
@@ -89,15 +124,22 @@ export default function Brief() {
           </View>
         ) : null
       }>
+      <View style={s.pastilles}>
+        <Pastilles liste={MODES} actif={mode} onChoisir={choisir} />
+      </View>
+
       <View style={s.corps}>
+        {/* La géolocalisation est facultative : si elle manque, on l'explique
+            et on continue d'afficher le brief régional. On ne bloque jamais
+            un écran sur une permission refusée. */}
+        {geoKo ? <BandeauGeo etat={etatGeo} /> : null}
+
         {!brief ? (
           <EtatVide enCours={briefEnCours} erreur={briefErreur} />
         ) : (
           <>
-            <Maintenant d={vedette} now={h} />
-            {suite.length ? <Suite liste={suite} /> : null}
-            {/* Ce qui est vide disparaît : pas de carte « aucune fermeture »
-                qui occupe la moitié de l'écran. */}
+            <Maintenant d={vedette} now={h} local={local} />
+            {suite.length ? <Suite liste={suite} now={h} /> : null}
             {fermetures.length ? <Attention liste={fermetures} /> : null}
           </>
         )}
@@ -106,18 +148,42 @@ export default function Brief() {
   );
 }
 
+function BandeauGeo({ etat }: { etat: 'refuse' | 'indisponible' }) {
+  return (
+    <View style={s.bandeau}>
+      <Text style={s.bandeauTexte}>{messageGeo(etat)}</Text>
+      <Text style={s.bandeauNote}>Le brief régional reste affiché.</Text>
+      {peutOuvrirReglages(etat) ? (
+        <Pressable onPress={ouvrirReglages} hitSlop={10} style={s.lien}>
+          <Text style={s.lienTexte}>Ouvrir les réglages</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 /* ---- Le bloc « Maintenant » -------------------------------------------
    Une seule opportunité, la meilleure, et le seul bloc accentué de l'écran. */
-function Maintenant({ d, now }: { d: Demand | null; now: ReturnType<typeof maintenant> }) {
+function Maintenant({
+  d, now, local,
+}: {
+  d: Demand | null;
+  now: ReturnType<typeof maintenant>;
+  local: boolean;
+}) {
   if (!d) {
-    /* Si rien d'important n'arrive dans l'heure et demie, on le dit
-       franchement plutôt que d'afficher un événement sans intérêt. */
     return (
       <View style={[s.carte, s.carteHero]}>
         <Text style={[s.label, s.labelHero]}>MAINTENANT</Text>
-        <Text style={s.titreCarte}>Rien de gros dans l’heure et demie</Text>
+        <Text style={s.titreCarte}>
+          {local
+            ? 'Rien de gros autour de toi dans l’heure et demie'
+            : 'Rien de gros dans l’heure et demie'}
+        </Text>
         <Text style={s.sousCarte}>
-          Regarde « Où aller » pour la suite de la journée.
+          {local
+            ? 'Essaie « Toute l’Île-de-France », ou regarde « Où aller ».'
+            : 'Regarde « Où aller » pour la suite de la journée.'}
         </Text>
       </View>
     );
@@ -150,14 +216,20 @@ function Maintenant({ d, now }: { d: Demand | null; now: ReturnType<typeof maint
   );
 }
 
-/* ---- La suite ---------------------------------------------------------- */
-function Suite({ liste }: { liste: Demand[] }) {
+function Suite({ liste, now }: { liste: Demand[]; now: ReturnType<typeof maintenant> }) {
   return (
     <View style={s.carte}>
       <Text style={s.label}>LA SUITE</Text>
       {liste.map((d) => (
         <View key={d.id} style={s.ligne}>
-          <Text style={s.heure}>{hhmm(aParis(d.start))}</Text>
+          <View style={s.colonneHeure}>
+            {/* Un salon qui dure quatre jours produit quatre lignes à 14h00.
+                Sans le jour, elles sont indiscernables. */}
+            {estLeLendemain(d.start, now) ? (
+              <Text style={s.demain}>demain</Text>
+            ) : null}
+            <Text style={s.heure}>{hhmm(aParis(d.start))}</Text>
+          </View>
           <View style={s.ligneTexte}>
             {/* Le lieu en premier : c'est ce qu'un chauffeur lit. */}
             <Text style={s.ligneTitre} numberOfLines={1}>{d.venue}</Text>
@@ -170,7 +242,6 @@ function Suite({ liste }: { liste: Demand[] }) {
   );
 }
 
-/* ---- Attention --------------------------------------------------------- */
 function Attention({ liste }: { liste: Closure[] }) {
   const c = liste[0];
   return (
@@ -213,6 +284,7 @@ function EtatVide({ enCours, erreur }: { enCours: boolean; erreur: string | null
 }
 
 const s = StyleSheet.create({
+  pastilles: { paddingLeft: espaces.pad, paddingBottom: 10 },
   corps: { flex: 1, paddingHorizontal: espaces.pad, gap: 10 },
 
   sousTitre: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
@@ -224,6 +296,18 @@ const s = StyleSheet.create({
   meteo: { alignItems: 'center' },
   meteoIco: { fontSize: 25 },
   meteoDeg: { ...typo.sousTitre, ...tabulaire, fontFamily: polices.demi, color: couleurs.texte },
+
+  bandeau: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: couleurs.trait,
+    borderRadius: rayons.carte,
+    padding: 12,
+    gap: 2,
+  },
+  bandeauTexte: { ...typo.ligneSous, color: couleurs.texteAtenue, lineHeight: 18 },
+  bandeauNote: { ...typo.ligneSous, color: couleurs.texteMuet },
+  lien: { marginTop: 6, minHeight: 24, justifyContent: 'center' },
+  lienTexte: { ...typo.ligneSous, fontFamily: polices.demi, color: couleurs.texte },
 
   carte: {
     backgroundColor: couleurs.surface,
@@ -257,7 +341,9 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: couleurs.traitDoux,
   },
-  heure: { ...typo.heure, ...tabulaire, color: couleurs.texte, width: 54 },
+  colonneHeure: { width: 54 },
+  demain: { ...typo.etiquette, fontSize: 9, color: couleurs.texteMuet },
+  heure: { ...typo.heure, ...tabulaire, color: couleurs.texte },
   ligneTexte: { flex: 1 },
   ligneTitre: { ...typo.ligneTitre, color: couleurs.texte },
   ligneSous: { ...typo.ligneSous, color: couleurs.texteAtenue, marginTop: 1 },

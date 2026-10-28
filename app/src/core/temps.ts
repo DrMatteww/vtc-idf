@@ -139,6 +139,18 @@ export function hhmm(d: DateTime): string {
   return d.toFormat("HH'h'mm");
 }
 
+/**
+ * Vrai si l'instant tombe APRÈS la fin de la journée de travail en cours.
+ *
+ * Sans ça, deux jours du même salon — « Porte de Versailles, 14h00 » le 28 et
+ * le 29 — s'affichent à l'identique dans le brief, et rien ne dit lequel est
+ * aujourd'hui. La journée de référence est celle du chauffeur : elle finit à
+ * 6 h, pas à minuit.
+ */
+export function estLeLendemain(iso: string, now: DateTime = maintenant()): boolean {
+  return aParis(iso) >= finDeJournee(now);
+}
+
 export function minutesJusqua(iso: string, now: DateTime = maintenant()): number {
   return Math.round(aParis(iso).diff(now, 'minutes').minutes);
 }
