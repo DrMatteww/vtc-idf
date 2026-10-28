@@ -9,8 +9,39 @@
 
 import type { Commune, Dept, Position } from './types';
 
-/** Rayon par défaut du « autour de moi ». */
+/* ---- Le rayon dépend de là où tu es -----------------------------------
+   Relevé en roulant, et c'est le genre de calibrage qu'aucun bureau ne
+   trouve :
+
+   - DANS PARIS, 3 km. Dix kilomètres depuis La Chapelle mettent Montparnasse
+     dans la liste : ça traverse Paris de part en part. Personne ne traverse
+     Paris pour se repositionner, et une liste qui le propose se décrédibilise
+     en une fois.
+   - EN PROCHE COURONNE (92, 93, 94), 10 km. C'est ce qu'il faut pour toucher
+     Paris depuis la banlieue immédiate.
+   - EN GRANDE COURONNE (77, 78, 91, 95) ET HORS ÎLE-DE-FRANCE, 15 km. C'est
+     ce qui permet d'atteindre Paris, Orly ou Roissy — les trois seuls points
+     qui valent le déplacement depuis là-bas.
+
+   Autrement dit, le rayon n'est pas une distance : c'est le temps de route
+   qu'on accepte de faire, et il ne vaut pas la même chose selon où l'on est. */
+
+const RAYONS: Record<string, number> = {
+  '75': 3,
+  '92': 10, '93': 10, '94': 10,
+  '77': 15, '78': 15, '91': 15, '95': 15,
+};
+
+/** Hors Île-de-France, on raisonne comme en grande couronne. */
+export const RAYON_HORS_IDF = 15;
+
+/** Rayon par défaut, quand on ne sait pas encore où est le chauffeur. */
 export const RAYON_KM = 10;
+
+export function rayonPour(dept: Dept | null | undefined): number {
+  if (!dept) return RAYON_HORS_IDF;
+  return RAYONS[dept] ?? RAYON_HORS_IDF;
+}
 
 /** En deçà, un lieu connu impose son département. Voir `departementA`. */
 export const DEPT_LIEU_KM = 3;

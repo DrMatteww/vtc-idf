@@ -144,3 +144,20 @@ describe('aujourd\u2019hui ou demain', () => {
     expect(estLeLendemain('2026-10-29T14:00+01:00', now)).toBe(true);
   });
 });
+
+describe('la suite du brief ne déborde pas sur demain', () => {
+  it('un concert de demain soir n\u2019est pas « dans la journée »', () => {
+    const now = t('2026-10-28T09:00'); // ce matin
+    expect(estLeLendemain('2026-10-29T20:00+01:00', now)).toBe(true);
+  });
+
+  it('mais il le devient demain matin', () => {
+    const now = t('2026-10-29T09:00');
+    expect(estLeLendemain('2026-10-29T20:00+01:00', now)).toBe(false);
+  });
+
+  it('et un événement de cette nuit reste dans la journée en cours', () => {
+    const now = t('2026-10-28T23:00');
+    expect(estLeLendemain('2026-10-29T02:00+01:00', now)).toBe(false);
+  });
+});

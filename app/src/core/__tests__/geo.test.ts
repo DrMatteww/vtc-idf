@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { departementA, distanceKm, formatDistance, proches } from '../geo';
+import {
+  RAYON_HORS_IDF, departementA, distanceKm, formatDistance, proches, rayonPour,
+} from '../geo';
 import type { Commune } from '../types';
 
 describe('les distances', () => {
@@ -66,5 +68,38 @@ describe('dans quel département suis-je', () => {
 
   it('sans position, on ne devine pas', () => {
     expect(departementA(null, communes, [])).toBeNull();
+  });
+});
+
+describe('le rayon dépend de là où tu es', () => {
+  it('3 km dans Paris — dix km traverseraient la ville', () => {
+    expect(rayonPour('75')).toBe(3);
+  });
+
+  it('10 km en proche couronne, de quoi toucher Paris', () => {
+    expect(rayonPour('92')).toBe(10);
+    expect(rayonPour('93')).toBe(10);
+    expect(rayonPour('94')).toBe(10);
+  });
+
+  it('15 km en grande couronne, de quoi atteindre Paris, Orly ou Roissy', () => {
+    for (const d of ['77', '78', '91', '95'] as const) {
+      expect(rayonPour(d)).toBe(15);
+    }
+  });
+
+  it('hors Île-de-France, on raisonne comme en grande couronne', () => {
+    expect(rayonPour(null)).toBe(RAYON_HORS_IDF);
+    expect(rayonPour(undefined)).toBe(RAYON_HORS_IDF);
+  });
+
+  it('La Chapelle → Montparnasse sort du rayon parisien', () => {
+    /* C'est le cas qui a motivé la règle : 10 km mettaient Montparnasse dans
+       la liste d'un chauffeur posté à La Chapelle. */
+    const chapelle = { lat: 48.8846, lon: 2.3601 };
+    const montparnasse = { lat: 48.8417, lon: 2.3209 };
+    const km = distanceKm(chapelle.lat, chapelle.lon, montparnasse.lat, montparnasse.lon);
+    expect(km).toBeGreaterThan(rayonPour('75'));
+    expect(km).toBeLessThan(10); // d'où le piège : 10 km l'incluait
   });
 });

@@ -6,7 +6,7 @@ import {
 } from '@/core/demande';
 import { fermeturesDeLaNuit } from '@/core/fermetures';
 import { fraicheur } from '@/core/fraicheur';
-import { RAYON_KM, proches } from '@/core/geo';
+import { departementA, proches, rayonPour } from '@/core/geo';
 import { meteoMaintenant } from '@/core/meteo';
 import {
   aParis, compteARebours, estLeLendemain, hhmm, libelleJour, maintenant,
@@ -36,8 +36,10 @@ const MODES = [
 const CLE_MODE = 'vtc_brief_mode';
 
 export default function Brief() {
-  const { brief, briefDepuisCache, briefErreur, briefEnCours, rafraichirBrief } =
-    useDonnees();
+  const {
+    brief, briefDepuisCache, briefErreur, briefEnCours, rafraichirBrief,
+    zones, assurerZones,
+  } = useDonnees();
   const { pos, etat: etatGeo, demander } = usePosition();
 
   /* Si la position a déjà été accordée une fois, le brief s'ouvre sur le
@@ -56,7 +58,8 @@ export default function Brief() {
 
   useEffect(() => {
     rafraichirBrief();
-  }, [rafraichirBrief]);
+    assurerZones();
+  }, [rafraichirBrief, assurerZones]);
 
   /* Pour le brief local on exige une position NEUVE : on peut fermer l'app à
      Orly et la rouvrir dans Paris. */
@@ -89,11 +92,31 @@ export default function Brief() {
   const meteo = meteoMaintenant(brief?.meteo, pos, h);
 
   const tout = brief ? enCours(brief.demand, h) : [];
-  const vivant = local ? proches(tout, pos, RAYON_KM).liste : tout;
+
+  /* Le rayon dépend du département où se trouve le chauffeur, pas d'une
+     constante : 3 km dans Paris, 10 en proche couronne, 15 en grande
+     couronne. Voir core/geo.ts pour le pourquoi. */
+  const deptChauffeur = local
+    ? departementA(pos, zones?.communes ?? [], brief?.demand ?? [])
+    : null;
+  const rayon = rayonPour(deptChauffeur);
+
+  const autour = local ? proches(tout, pos, rayon).liste : tout;
+
+  /* S'il n'y a rien dans le rayon, on ne laisse pas un écran vide : on montre
+     toute l'Île-de-France et on le DIT. Mieux vaut une info utile ailleurs
+     qu'une absence d'info ici. */
+  const repli = local && autour.length === 0 && tout.length > 0;
+  const vivant = repli ? tout : autour;
 
   const vedette = meilleure(aVenir(vivant, -30, FENETRE_MIN, h), h);
+
+  /* « La suite », c'est la suite de LA JOURNÉE — celle du chauffeur, qui finit
+     à 6 h. Un concert de demain soir n'a rien à faire sur le brief de ce
+     matin : il s'affichera demain. « Où aller » est là pour la suite. */
   const suite = vivant
     .filter((d) => d.id !== vedette?.id)
+    .filter((d) => !estLeLendemain(d.start, h))
     .sort((a, b) => b.volume - a.volume)
     .slice(0, 2)
     .sort((a, b) => aParis(a.start).toMillis() - aParis(b.start).toMillis());
@@ -133,9 +156,14 @@ export default function Brief() {
         <Pastilles liste={MODES} actif={mode} onChoisir={choisir} />
       </View>
       {/* Dire le rayon, plutôt que de laisser deviner pourquoi la liste est
-          plus courte. */}
+          plus courte. Et dire le repli, plutôt que de faire croire que tout
+          ça se passe à côté. */}
       {local ? (
-        <Text style={s.rayon}>Dans un rayon de {RAYON_KM} km autour de toi.</Text>
+        <Text style={s.rayon}>
+          {repli
+            ? 'Rien dans ' + rayon + ' km autour de toi — voici toute l’Île-de-France.'
+            : 'Dans un rayon de ' + rayon + ' km autour de toi.'}
+        </Text>
       ) : null}
 
       <View style={s.corps}>
@@ -148,8 +176,8 @@ export default function Brief() {
           <EtatVide enCours={briefEnCours} erreur={briefErreur} />
         ) : (
           <>
-            <Maintenant d={vedette} now={h} local={local} />
-            {suite.length ? <Suite liste={suite} now={h} /> : null}
+            <Maintenant d={vedette} now={h} local={local && !repli} />
+            {suite.length ? <Suite liste={suite} /> : null}
             {fermetures.length ? <Attention liste={fermetures} /> : null}
           </>
         )}
@@ -226,20 +254,13 @@ function Maintenant({
   );
 }
 
-function Suite({ liste, now }: { liste: Demand[]; now: ReturnType<typeof maintenant> }) {
+function Suite({ liste }: { liste: Demand[] }) {
   return (
     <View style={s.carte}>
       <Text style={s.label}>LA SUITE</Text>
       {liste.map((d) => (
         <View key={d.id} style={s.ligne}>
-          <View style={s.colonneHeure}>
-            {/* Un salon qui dure quatre jours produit quatre lignes à 14h00.
-                Sans le jour, elles sont indiscernables. */}
-            {estLeLendemain(d.start, now) ? (
-              <Text style={s.demain}>demain</Text>
-            ) : null}
-            <Text style={s.heure}>{hhmm(aParis(d.start))}</Text>
-          </View>
+          <Text style={s.heure}>{hhmm(aParis(d.start))}</Text>
           <View style={s.ligneTexte}>
             {/* Le lieu en premier : c'est ce qu'un chauffeur lit. */}
             <Text style={s.ligneTitre} numberOfLines={1}>{d.venue}</Text>
@@ -357,9 +378,7 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: couleurs.traitDoux,
   },
-  colonneHeure: { width: 54 },
-  demain: { ...typo.etiquette, fontSize: 9, color: couleurs.texteMuet },
-  heure: { ...typo.heure, ...tabulaire, color: couleurs.texte },
+  heure: { ...typo.heure, ...tabulaire, color: couleurs.texte, width: 54 },
   ligneTexte: { flex: 1 },
   ligneTitre: { ...typo.ligneTitre, color: couleurs.texte },
   ligneSous: { ...typo.ligneSous, color: couleurs.texteAtenue, marginTop: 1 },
