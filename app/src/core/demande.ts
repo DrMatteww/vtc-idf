@@ -122,3 +122,59 @@ export function meilleure(items: Demand[], now: DateTime = maintenant()): Demand
   }
   return best;
 }
+
+/* ---- Les filtres par type ---------------------------------------------
+   Concerts, sport et salons sont réunis sous « Événements » : sur trois
+   jours il y a rarement les trois à la fois, et trois pastilles dont deux
+   vides, c'est trois occasions de cliquer pour ne rien trouver. Les séparer
+   avait été essayé, puis abandonné.                                       */
+
+export interface Filtre {
+  code: string;
+  libelle: string;
+  genres: Kind[];
+}
+
+export const FILTRES: Filtre[] = [
+  { code: 'train', libelle: 'Trains', genres: ['train'] },
+  { code: 'flight', libelle: 'Vols', genres: ['flight'] },
+  { code: 'event', libelle: 'Événements', genres: ['concert', 'sport', 'salon'] },
+];
+
+export function dansFiltre(genre: Kind, code: string): boolean {
+  if (code === 'all') return true;
+  const f = FILTRES.find((x) => x.code === code);
+  return f ? f.genres.includes(genre) : false;
+}
+
+/** Les départements, dans l'ordre où un chauffeur d'IDF les cherche. */
+export const DEPTS = [
+  { code: 'all', libelle: 'Toute l\u2019IDF' },
+  { code: '75', libelle: 'Paris' },
+  { code: '92', libelle: '92' },
+  { code: '93', libelle: '93' },
+  { code: '94', libelle: '94' },
+  { code: '95', libelle: '95' },
+  { code: '78', libelle: '78' },
+  { code: '91', libelle: '91' },
+  { code: '77', libelle: '77' },
+] as const;
+
+/**
+ * L'heure s'accentue quand le créneau est chaud : soit il commence dans
+ * l'heure et demie, soit il est EN TRAIN de se produire.
+ *
+ * Le second cas n'est pas théorique : le générateur groupe les arrivées par
+ * créneaux de DEUX HEURES — et non de trente minutes comme l'annonce
+ * 03-les-donnees.md. À 15h46, le créneau « 14h00 → 16h00 » est celui qui est
+ * en cours ; l'afficher en gris le ferait lire comme passé.
+ */
+export function estImminent(
+  d: Pick<Demand, 'start' | 'end'>,
+  now: DateTime = maintenant(),
+): boolean {
+  const m = minutesJusqua(d.start, now);
+  if (m <= 90 && m > -30) return true;
+  if (!d.end) return false;
+  return aParis(d.start) <= now && aParis(d.end) > now;
+}

@@ -33,3 +33,31 @@ const s = StyleSheet.create({
   presse: { opacity: 0.7 },
   texte: { fontFamily: polices.gras, fontSize: 14, color: couleurs.accentEncre },
 });
+
+/* La version des listes : un lien, pas un pavé blanc. Vingt lignes avec
+   vingt boutons pleins, l'écran ne dit plus où appuyer. */
+export function LienGps({ lat, lon }: { lat: number; lon: number }) {
+  return (
+    <Pressable
+      onPress={() => ouvrirNav(lat, lon)}
+      hitSlop={14}
+      accessibilityRole="button"
+      accessibilityLabel={'Y aller avec ' + NOMS[NAV_DEFAUT]}
+      style={({ pressed }) => [l.lien, pressed && l.presse]}>
+      <Text style={l.texte}>Y aller</Text>
+    </Pressable>
+  );
+}
+
+const l = StyleSheet.create({
+  lien: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: couleurs.trait,
+    borderRadius: rayons.petit,
+    paddingHorizontal: 10,
+    height: 32,
+    justifyContent: 'center',
+  },
+  presse: { opacity: 0.6 },
+  texte: { fontFamily: polices.demi, fontSize: 12, color: couleurs.texte },
+});

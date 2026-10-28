@@ -151,6 +151,21 @@ export function estLeLendemain(iso: string, now: DateTime = maintenant()): boole
   return aParis(iso) >= finDeJournee(now);
 }
 
+/**
+ * L'étiquette de section de la timeline : où l'on en est dans la journée,
+ * pour que la liste reste lisible quand elle court sur vingt-quatre heures.
+ *
+ * Le découpage est CALENDAIRE ici, contrairement à `finDeJournee` : « Demain »
+ * veut dire demain, pas « après 6 h ». Un chauffeur lit une date, pas une
+ * convention de service.
+ */
+export function sectionDe(iso: string, now: DateTime = maintenant()): string {
+  const d = aParis(iso);
+  if (d.hasSame(now, 'day')) return tranche(d).libelle;
+  if (d.hasSame(now.plus({ days: 1 }), 'day')) return 'Demain';
+  return libelleJour(d);
+}
+
 export function minutesJusqua(iso: string, now: DateTime = maintenant()): number {
   return Math.round(aParis(iso).diff(now, 'minutes').minutes);
 }
