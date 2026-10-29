@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "VTC IDF",
+    "name": "QLN",
     "slug": "vtc-idf",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -47,7 +47,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "VTC IDF se sert de ta position pour trier les lieux par distance et afficher le brief autour de toi. Elle reste sur ton téléphone et n'est envoyée nulle part.",
+          "locationWhenInUsePermission": "QLN se sert de ta position pour trier les lieux par distance et afficher le brief autour de toi. Elle reste sur ton téléphone et n'est envoyée nulle part.",
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false
         }

@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BarreTitre } from './barre-titre';
-import { couleurs, espaces, typo } from './theme';
+import { LARGEUR_MAX, couleurs, espaces, typo } from './theme';
 
 interface Props {
   titre: string;
@@ -28,7 +28,13 @@ export function Ecran({
      faut remonter au doigt pour la lire. On réserve sa hauteur plus la zone
      sûre du téléphone. */
   const insets = useSafeAreaInsets();
-  const basDePage = { paddingBottom: insets.bottom + HAUTEUR_ONGLETS };
+  const basDePage = {
+    paddingBottom: insets.bottom + HAUTEUR_ONGLETS,
+    /* Et la zone sûre latérale : sur grand écran, la barre d'onglets native
+       se range sur le côté et recouvrirait le contenu. */
+    paddingLeft: insets.left,
+    paddingRight: insets.right,
+  };
   const entete = (
     <View style={s.topbar}>
       <View style={s.titres}>
@@ -64,8 +70,10 @@ export function Ecran({
             />
           ) : undefined
         }>
-        {entete}
-        {children}
+        <View style={s.centre}>
+          {entete}
+          {children}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -77,6 +85,7 @@ export const HAUTEUR_ONGLETS = 64;
 const s = StyleSheet.create({
   fond: { flex: 1, backgroundColor: couleurs.fond },
   corps: { flex: 1 },
+  centre: { width: '100%', maxWidth: LARGEUR_MAX, alignSelf: 'center' },
   defilant: {},
   fixe: { flexGrow: 1 },
   topbar: {

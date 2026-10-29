@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList, RefreshControl, StyleSheet, Text, TextInput, View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type Depannage, depannageToilettes } from '@/core/depannage-wc';
@@ -25,7 +26,7 @@ import { Etoile } from '@/ui/etoile';
 import { Pastilles } from '@/ui/pastilles';
 import { SousNav } from '@/ui/sous-nav';
 import { HAUTEUR_ONGLETS } from '@/ui/ecran';
-import { couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
+import { LARGEUR_MAX, couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
 
 type AvecDist = { km?: number };
 
@@ -55,11 +56,14 @@ export default function SurLaRoute() {
     return () => clearInterval(t);
   }, []);
 
-  /* On ne demande la position qu'une fois : une autorisation refusée ne doit
-     pas redemander à chaque sous-section. */
-  useEffect(() => {
-    demander();
-  }, [demander]);
+  /* On ne demande la position QU'EN OUVRANT cet onglet — pas au lancement de
+     l'app — et une seule fois : une autorisation refusée ne doit pas
+     redemander à chaque sous-section. */
+  useFocusEffect(
+    useCallback(() => {
+      demander();
+    }, [demander]),
+  );
 
   /* Les 860 Ko n'arrivent QUE maintenant — le chauffeur qui ne lit que son
      brief ne les paie jamais. */
@@ -148,7 +152,15 @@ export default function SurLaRoute() {
         keyExtractor={(it: { id: string }) => it.id}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[s.liste, { paddingBottom: insets.bottom + HAUTEUR_ONGLETS }]}
+        contentContainerStyle={[
+          s.liste,
+          {
+            paddingBottom: insets.bottom + HAUTEUR_ONGLETS,
+            paddingLeft: espaces.pad + insets.left,
+            paddingRight: espaces.pad + insets.right,
+          },
+        ]}
+        style={s.largeur}
         refreshControl={
           <RefreshControl
             refreshing={chargement}
@@ -563,7 +575,9 @@ const s = StyleSheet.create({
     fontSize: 15,
   },
 
-  liste: { paddingHorizontal: espaces.pad },
+  liste: {},
+  /* Même règle que l'écran commun : au-delà, les lignes s'étirent. */
+  largeur: { width: '100%', maxWidth: LARGEUR_MAX, alignSelf: 'center' },
   notes: { paddingTop: 12, gap: 6 },
 
   depannage: {

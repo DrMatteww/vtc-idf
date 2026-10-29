@@ -35,6 +35,15 @@ export const rayons = {
   petit: 2,
 } as const;
 
+/* Au-delà, le texte s'étire et devient pénible à lire. Relevé sur un iPhone
+   pliable, où la barre d'onglets native devient un rail vertical à droite et
+   où le contenu occupait toute la largeur : les lignes faisaient le double
+   d'une longueur lisible, et le rail recouvrait les boutons de droite.
+
+   Sur un téléphone ordinaire cette limite ne se voit pas — la largeur est
+   déjà inférieure. */
+export const LARGEUR_MAX = 620;
+
 export const espaces = {
   pad: 16,
   /* Cible tactile minimale : on tape au pouce, d'une main, parfois en

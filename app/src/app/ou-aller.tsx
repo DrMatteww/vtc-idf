@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState, RefreshControl, SectionList, StyleSheet, Text, View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -17,7 +18,7 @@ import { LienGps } from '@/ui/bouton-gps';
 import { Departement, Flammes } from '@/ui/etiquettes';
 import { Pastilles } from '@/ui/pastilles';
 import { HAUTEUR_ONGLETS } from '@/ui/ecran';
-import { couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
+import { LARGEUR_MAX, couleurs, espaces, polices, rayons, tabulaire, typo } from '@/ui/theme';
 
 const TYPES = [
   { code: 'all', libelle: 'Tout' },
@@ -50,8 +51,18 @@ export default function OuAller() {
   useEffect(() => {
     rafraichirBrief();
     assurerZones();
-    demander();
-  }, [rafraichirBrief, assurerZones, demander]);
+  }, [rafraichirBrief, assurerZones]);
+
+  /* La position ne se demande QU'EN OUVRANT cet onglet, jamais au lancement.
+     Une fenêtre d'autorisation au premier démarrage est la pire entrée en
+     matière : le chauffeur n'a encore rien vu de l'app et on lui réclame
+     déjà quelque chose. Ici il a tapé « Où aller », donc la demande a un
+     sens — et il peut refuser sans que l'écran cesse de fonctionner. */
+  useFocusEffect(
+    useCallback(() => {
+      demander();
+    }, [demander]),
+  );
 
   /* Redéduction au retour au premier plan : on a pu rouler entre-temps. */
   useEffect(() => {
@@ -124,7 +135,15 @@ export default function OuAller() {
           />
         }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.liste, { paddingBottom: insets.bottom + HAUTEUR_ONGLETS }]}
+        contentContainerStyle={[
+          s.liste,
+          {
+            paddingBottom: insets.bottom + HAUTEUR_ONGLETS,
+            paddingLeft: espaces.pad + insets.left,
+            paddingRight: espaces.pad + insets.right,
+          },
+        ]}
+        style={s.largeur}
         renderSectionHeader={({ section }) => (
           <Text style={s.section}>{section.title}</Text>
         )}
@@ -222,7 +241,9 @@ const s = StyleSheet.create({
   filtres: { paddingLeft: espaces.pad, paddingBottom: 6 },
   filtresBas: { paddingLeft: espaces.pad, paddingBottom: 8 },
 
-  liste: { paddingHorizontal: espaces.pad },
+  liste: {},
+  /* Même règle que l'écran commun : au-delà, les lignes s'étirent. */
+  largeur: { width: '100%', maxWidth: LARGEUR_MAX, alignSelf: 'center' },
   section: {
     ...typo.etiquette,
     color: couleurs.texteMuet,
