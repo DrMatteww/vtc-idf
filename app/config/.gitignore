@@ -1,0 +1,6 @@
+# Ces deux fichiers identifient le projet Firebase. Ils ne sont pas secrets
+# — on les retrouve dans n'importe quelle app publiée — mais ils sont propres
+# à l'environnement de chacun : on les garde hors du dépôt pour que personne
+# ne pousse par mégarde la configuration d'un autre projet.
+google-services.json
+GoogleService-Info.plist

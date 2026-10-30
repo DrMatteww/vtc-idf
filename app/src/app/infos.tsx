@@ -8,9 +8,13 @@ import { SEUIL_1, SEUIL_2, SEUIL_3 } from '@/core/demande';
 import { type EcheanceLue, libelleEcheance, lireEcheances } from '@/core/echeances';
 import type { Bloc, BlocTexte, Module } from '@/core/infos';
 import type { Vehicule } from '@/core/lieux';
+import { departementA } from '@/core/geo';
 import { ZONE, maintenant } from '@/core/temps';
 import type { Nav } from '@/reglages/navigation';
 import { useDonnees } from '@/donnees/store';
+import { ouvrirReglages } from '@/reglages/position';
+import { useNotifs } from '@/reglages/notifications';
+import { usePosition } from '@/reglages/position';
 import { usePrefs } from '@/reglages/preferences';
 import { Ecran } from '@/ui/ecran';
 import { Etiquette, Flammes } from '@/ui/etiquettes';
@@ -44,6 +48,7 @@ function Rendu({ b }: { b: Bloc }) {
 
 function ModuleRendu({ nom }: { nom: Module }) {
   switch (nom) {
+    case 'notifications': return <LesNotifications />;
     case 'echeances': return <MesEcheances />;
     case 'gps': return <TonGps />;
     case 'vehicule': return <TonVehicule />;
@@ -104,6 +109,82 @@ function Petit({ children }: { children: ReactNode }) {
 const G = ({ children }: { children: ReactNode }) => (
   <Text style={s.gras}>{children}</Text>
 );
+
+/* ---- Les notifications -------------------------------------------------
+   L'autorisation part d'ICI, sur un geste du chauffeur, et jamais au
+   lancement. C'est aussi ici qu'on lui dit à quoi il est abonné : sans
+   compte, il n'a aucun autre endroit où le vérifier.                      */
+function LesNotifications() {
+  const { etat, sujets, enCours, activer, desactiver } = useNotifs();
+  const zones = useDonnees((e) => e.zones);
+  const brief = useDonnees((e) => e.brief);
+  const pos = usePosition((e) => e.pos);
+
+  const dept = pos ? departementA(pos, zones?.communes ?? [], brief?.demand ?? []) : null;
+  const actif = etat === 'actif';
+
+  return (
+    <Carte label="Les notifications">
+      <P>
+        Être prévenu qu’un concert finit dans quarante minutes à huit
+        kilomètres, sans avoir à ouvrir l’appli. Dans ce métier, le geste
+        gagnant est celui qu’on ne fait pas.
+      </P>
+
+      <View style={s.pastilles}>
+        <Pastilles
+          liste={[
+            { code: 'off' as const, libelle: 'Coupées' },
+            { code: 'on' as const, libelle: 'Activées' },
+          ]}
+          actif={actif ? 'on' : 'off'}
+          onChoisir={(c) => (c === 'on' ? activer(dept) : desactiver())}
+        />
+      </View>
+
+      {enCours ? <Petit>Un instant…</Petit> : null}
+
+      {etat === 'indisponible' ? (
+        <Petit>
+          Indisponible dans cette version de l’app. Elles arriveront avec la
+          prochaine mise à jour installée depuis le magasin.
+        </Petit>
+      ) : null}
+
+      {etat === 'refuse' ? (
+        <>
+          <Petit>
+            Tu as refusé les notifications au téléphone. Il faut les réautoriser
+            dans les réglages.
+          </Petit>
+          <Pressable onPress={ouvrirReglages} hitSlop={10} style={s.lien}>
+            <Text style={s.lienTexte}>Ouvrir les réglages</Text>
+          </Pressable>
+        </>
+      ) : null}
+
+      {actif ? (
+        <>
+          <View style={s.tags}>
+            {sujets.map((x) => (
+              <Etiquette key={x} texte={x === 'tous' ? 'Toute l’IDF' : 'Dept ' + x.slice(5)} ton="ok" />
+            ))}
+          </View>
+          <Petit>
+            Tu reçois le général et, quand on sait où tu es, ton département.
+            L’abonnement suit ta position : change de secteur, il suit.
+          </Petit>
+        </>
+      ) : null}
+
+      <Petit>
+        On diffuse vers des canaux, pas vers des personnes : ton téléphone
+        s’abonne lui-même. Aucun identifiant d’appareil n’est conservé, et il
+        n’existe aucune liste de destinataires.
+      </Petit>
+    </Carte>
+  );
+}
 
 /* ---- Mes échéances ----------------------------------------------------- */
 function MesEcheances() {
@@ -413,6 +494,9 @@ const s = StyleSheet.create({
   croix: { paddingLeft: 4 },
   croixTexte: { ...typo.ligneSous, color: couleurs.texteMuet },
 
+  lien: { marginTop: 6, minHeight: 24, justifyContent: 'center' },
+  lienTexte: { ...typo.ligneSous, fontFamily: polices.demi, color: couleurs.texte },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
   bouton: {
     alignSelf: 'flex-start',
     marginTop: 4,

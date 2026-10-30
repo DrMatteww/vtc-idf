@@ -17,6 +17,7 @@
 
 /** Les blocs interactifs, qui ne sont pas du texte et restent dans le code. */
 export type Module =
+  | 'notifications'
   | 'echeances'
   | 'gps'
   | 'vehicule'
@@ -50,6 +51,7 @@ const m = (module: Module): BlocModule => ({ id: module, type: 'module', module,
 
 export const INFOS_PAR_DEFAUT: Infos = {
   blocs: [
+    m('notifications'),
     m('echeances'),
     m('gps'),
     m('vehicule'),

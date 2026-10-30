@@ -18,6 +18,7 @@ import { useDonnees } from '@/donnees/store';
 import {
   geoDejaAccordee, messageGeo, ouvrirReglages, peutOuvrirReglages, usePosition,
 } from '@/reglages/position';
+import { useNotifs } from '@/reglages/notifications';
 import { usePrefs } from '@/reglages/preferences';
 import { ecrire, lireParmi } from '@/reglages/stockage';
 import { BoutonGps } from '@/ui/bouton-gps';
@@ -44,6 +45,7 @@ export default function Brief() {
   } = useDonnees();
   const { pos, etat: etatGeo, demander } = usePosition();
   const saisies = usePrefs((e) => e.echeances);
+  const synchroniserNotifs = useNotifs((e) => e.synchroniser);
 
   /* Si la position a déjà été accordée une fois, le brief s'ouvre sur le
      secteur du chauffeur : c'est ce qu'il veut voir en premier. Sinon, toute
@@ -103,6 +105,13 @@ export default function Brief() {
     ? departementA(pos, zones?.communes ?? [], brief?.demand ?? [])
     : null;
   const rayon = rayonPour(deptChauffeur);
+
+  /* L'abonnement suit le chauffeur : il roule du 93 au 94, il reçoit le 94.
+     Silencieux — aucune autorisation n'est demandée ici, et si les
+     notifications sont coupées il ne se passe rien. */
+  useEffect(() => {
+    synchroniserNotifs(deptChauffeur);
+  }, [deptChauffeur, synchroniserNotifs]);
 
   const autour = local ? proches(tout, pos, rayon).liste : tout;
 

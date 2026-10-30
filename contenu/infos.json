@@ -1,9 +1,30 @@
 {
   "_lisez_moi": "Le contenu de l'onglet Infos. Édité par le back office, copié tel quel dans public/data/infos.json par l'Action, et lu par l'application. Un bloc 'module' est interactif et vit dans le code (échéances, réglages, barème des flammes, sources) : on peut le déplacer ou le masquer, pas le réécrire. Un bloc 'texte' est entièrement libre. Le gras s'écrit entre doubles astérisques. Si ce fichier manque ou est abîmé, l'application retombe sur le contenu inscrit dans son code : elle n'est jamais vide.",
   "blocs": [
-    { "id": "echeances", "type": "module", "module": "echeances", "actif": true },
-    { "id": "gps", "type": "module", "module": "gps", "actif": true },
-    { "id": "vehicule", "type": "module", "module": "vehicule", "actif": true },
+    {
+      "id": "notifications",
+      "type": "module",
+      "module": "notifications",
+      "actif": true
+    },
+    {
+      "id": "echeances",
+      "type": "module",
+      "module": "echeances",
+      "actif": true
+    },
+    {
+      "id": "gps",
+      "type": "module",
+      "module": "gps",
+      "actif": true
+    },
+    {
+      "id": "vehicule",
+      "type": "module",
+      "module": "vehicule",
+      "actif": true
+    },
     {
       "id": "gratuit",
       "type": "texte",
@@ -26,9 +47,29 @@
         "**La régie publicitaire**, elle, collecte des données pour choisir les annonces — et c’est ce qui permet que l’application reste gratuite. Tu peux refuser : les annonces deviennent moins pertinentes, et rien d’autre ne change."
       ]
     },
-    { "id": "suggestions", "type": "module", "module": "suggestions", "actif": true },
-    { "id": "flammes", "type": "module", "module": "flammes", "actif": true },
-    { "id": "sources", "type": "module", "module": "sources", "actif": true },
-    { "id": "version", "type": "module", "module": "version", "actif": true }
+    {
+      "id": "suggestions",
+      "type": "module",
+      "module": "suggestions",
+      "actif": true
+    },
+    {
+      "id": "flammes",
+      "type": "module",
+      "module": "flammes",
+      "actif": true
+    },
+    {
+      "id": "sources",
+      "type": "module",
+      "module": "sources",
+      "actif": true
+    },
+    {
+      "id": "version",
+      "type": "module",
+      "module": "version",
+      "actif": true
+    }
   ]
 }
