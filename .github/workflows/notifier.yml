@@ -48,11 +48,12 @@ jobs:
           else echo "dir=." >> "$GITHUB_OUTPUT"; fi
 
       # Le titre et le message passent par l'environnement, jamais par une
-      # expression `inputs` dans le `run:`. GitHub y substitue le texte AVANT que le shell
-      # ne l'analyse : un `$(...)` dans le titre s'exécuterait sur le runner,
-      # qui porte FCM_SERVICE_ACCOUNT, SNCF_TOKEN et TICKETMASTER_KEY. La
-      # liste blanche de notifier.py ne protège pas de ça — Python tourne
-      # après le shell. En variable d'environnement, le texte reste du texte.
+      # expression `inputs` dans le `run:`. GitHub y substitue le texte AVANT
+      # que le shell ne l'analyse : un `$(...)` dans un titre s'exécuterait
+      # alors sur le runner, celui qui porte FCM_SERVICE_ACCOUNT, SNCF_TOKEN
+      # et TICKETMASTER_KEY. La liste blanche de notifier.py n'y change rien,
+      # Python tournant après le shell. En variable d'environnement, le texte
+      # reste du texte.
       - name: Envoyer
         env:
           FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
