@@ -47,17 +47,30 @@ jobs:
           if [ -d vtc-app/scripts ]; then echo "dir=vtc-app" >> "$GITHUB_OUTPUT";
           else echo "dir=." >> "$GITHUB_OUTPUT"; fi
 
+      # Le titre et le message passent par l'environnement, jamais par une
+      # expression `inputs` dans le `run:`. GitHub y substitue le texte AVANT que le shell
+      # ne l'analyse : un `$(...)` dans le titre s'exécuterait sur le runner,
+      # qui porte FCM_SERVICE_ACCOUNT, SNCF_TOKEN et TICKETMASTER_KEY. La
+      # liste blanche de notifier.py ne protège pas de ça — Python tourne
+      # après le shell. En variable d'environnement, le texte reste du texte.
       - name: Envoyer
         env:
           FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
+          DOSSIER: ${{ steps.app.outputs.dir }}
+          SUJET: ${{ inputs.sujet }}
+          TITRE: ${{ inputs.titre }}
+          MESSAGE: ${{ inputs.message }}
         run: |
-          python3 ${{ steps.app.outputs.dir }}/scripts/notifier.py \
-            --sujet   "${{ inputs.sujet }}" \
-            --titre   "${{ inputs.titre }}" \
-            --message "${{ inputs.message }}"
+          python3 "$DOSSIER/scripts/notifier.py" \
+            --sujet   "$SUJET" \
+            --titre   "$TITRE" \
+            --message "$MESSAGE"
 
       - name: Trace
+        env:
+          SUJET: ${{ inputs.sujet }}
+          TITRE: ${{ inputs.titre }}
         run: |
           echo "### Notification" >> "$GITHUB_STEP_SUMMARY"
-          echo "- sujet : \`${{ inputs.sujet }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- titre : ${{ inputs.titre }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- sujet : \`$SUJET\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- titre : $TITRE" >> "$GITHUB_STEP_SUMMARY"
